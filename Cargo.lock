@@ -628,6 +628,7 @@ dependencies = [
  "nalgebra",
  "quick-protobuf",
  "reqwest",
+ "wasm-bindgen",
 ]
 
 [[package]]

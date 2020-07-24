@@ -2,9 +2,20 @@ use crate::protos::vector_tile::mod_Tile::Feature;
 use nalgebra as na;
 use std::f32::consts::PI;
 
+pub type LonLat = na::Point2<f32>;
+
 pub struct Mesh {
 	pub vertices: Vec<na::Point3<f32>>,
 	pub triangles: Vec<(usize, usize, usize)>,
+}
+
+impl Mesh {
+	pub fn new() -> Self {
+		Self {
+			vertices: vec![],
+			triangles: vec![],
+		}
+	}
 }
 
 impl Feature {
