@@ -1,22 +1,55 @@
+use wasm_bindgen::prelude::*;
+
 use nalgebra as na;
 use std::f32::consts::PI;
 use crate::geometry::{Mesh, LonLat};
 use crate::protos::vector_tile::{Tile as VectorTile};
 
+#[cfg(target_arch = "wasm32")]
+use crate::wasm;
+
 const MOVE_TO: u32 = 0x1;
 const LINE_TO: u32 = 0x2;
 const CLOSE_PATH: u32 = 0x7;
 
+#[wasm_bindgen]
 #[derive(Clone, Debug)]
 pub struct Tile {
+	mesh: Mesh,
+}
+
+#[wasm_bindgen]
+impl Tile {
+	pub fn new() -> Self {
+		Self {
+			mesh: Mesh::new(),
+		}
+	}
+
+	pub fn mesh(&self) -> Mesh {
+		self.mesh.clone()
+	}
+
+	#[wasm_bindgen(js_name="toString")]
+	pub fn to_string(&self) -> String {
+		format!("{:?}", self)
+	}
+
+	#[wasm_bindgen]
+	pub fn vertices(&self) -> Vec<f32> {
+		self.mesh.vertices_as_vec()
+	}
+
+	#[wasm_bindgen]
+	pub fn triangles(&self) -> Vec<u32> {
+		self.mesh.triangles_as_vec()
+	}
 }
 
 impl Tile {
-	pub fn from_vector_tile<'a>(raw: VectorTile<'a>) -> Self {
-		let x = 0;
-		let y = 0;
-		let z = 0;
 
+	pub fn from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
+		let mut mesh = Mesh::new();
 
 		let layer = &raw.layers[0];
 		let extent = layer.extent as f32;
@@ -37,9 +70,16 @@ impl Tile {
 				};
 
 				let mut line_start = make_point(cursor);
+				let mut line_closed = true;
 				'cmd: for i in 0..count {
 					match cmd {
 						MOVE_TO => {
+							if !line_closed {
+								let p0 = make_point(cursor);
+								let p1 = line_start;
+								edges.push((p0, p1));
+							}
+
 							let param = geometry.remove(0) as i32;
 							let arg0 = ((param >> 1) ^ (-(param & 1)));
 							let param = geometry.remove(0) as i32;
@@ -50,6 +90,7 @@ impl Tile {
 							line_start = make_point(cursor);
 						}
 						LINE_TO => {
+							line_closed = false;
 							let param = geometry.remove(0) as i32;
 							let arg0 = ((param >> 1) ^ (-(param & 1)));
 							let param = geometry.remove(0) as i32;
@@ -62,23 +103,37 @@ impl Tile {
 
 							let p1 = make_point(cursor);
 
-							let border = 10.0;
+							let border = 0.0;
 
-							if p0.x >= 180.0 - border && p1.x >= 180.0 - border {
+							if p0.x >= 180.0 - border || p1.x >= 180.0 - border {
 								continue;
 							}
-							if p0.x <= -180.0 + border && p1.x <= -180.0 + border {
+							if p0.x <= -180.0 + border || p1.x <= -180.0 + border {
 								continue;
 							}
-							if p0.y >= 90.0 - border && p1.y >= 90.0 - border {
+							if p0.y >= 90.0 - border || p1.y >= 90.0 - border {
 								continue;
 							}
-							if p0.y <= -90.0 + border && p1.y <= -90.0 + border {
+							if p0.y <= -90.0 + border || p1.y <= -90.0 + border {
 								continue;
 							}
-							edges.push((p0, p1));
+
+							// FIXME Hack to remove glitchy lines
+							let line = (p0 - p1);
+							let norm = line.normalize();
+							if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && line.norm().abs() > 2.0 {
+								//wasm::log(&format!("Glitchy {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
+							}
+							else if line.norm().abs() > 10.0 {
+								//wasm::log(&format!("derp {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
+							}
+							else {
+								//wasm::log(&format!("p {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
+								edges.push((p0, p1));
+							}
 						}
 						CLOSE_PATH => {
+							line_closed = true;
 							if edges.len() > 0 {
 								let p0 = make_point(cursor);
 								let p1 = line_start;
@@ -88,30 +143,42 @@ impl Tile {
 						_ => panic!("Unknown command {}", cmd),
 					}
 				}
+
+				if !line_closed {
+					if edges.len() > 0 {
+						let p0 = make_point(cursor);
+						let p1 = line_start;
+						//edges.push((p0, p1));
+					}
+				}
 			}
 
-			/*
-			   let mut mesh = StaticMesh::new();
-			   for p in &edges {
-			   mesh.vertices.push(lonlat_to_point(&p.0));
-			   mesh.vertices.push(lonlat_to_point(&p.1));
-			   }
-			   for i in 0..edges.len() {
-			   mesh.triangles.push((i * 2, i * 2, i * 2 + 1));
-			   mesh.triangles.push((i * 2, i * 2, i * 2 + 1));
-			   mesh.triangles.push((i * 2, i * 2, i * 2 + 1));
-			   mesh.triangles.push((i * 2, i * 2, i * 2 + 1));
-			   }
-			   self.tiles.push(mesh);
-			   */
+			for edge in &edges {
+				let p0 = na::Point2::new(-edge.0.x, -edge.0.y);
+				let p1 = na::Point2::new(-edge.1.x, -edge.1.y);
+				let p2 = na::Point2::new(p0.x + 1.0, p0.y);
+				let p3 = na::Point2::new(p1.x + 1.0, p1.y);
+				mesh.vertices_mut().push(lonlat_to_point(&p0));
+				mesh.vertices_mut().push(lonlat_to_point(&p1));
+				mesh.vertices_mut().push(lonlat_to_point(&p2));
+				mesh.vertices_mut().push(lonlat_to_point(&p3));
+			}
+			let step = 4;
+			for i in 0..edges.len() {
+				let p0 = i * step;
+				let p1 = i * step + 1;
+				let p2 = i * step + 2;
+				let p3 = i * step + 3;
+				mesh.triangles_mut().push((p0, p1, p2));
+				mesh.triangles_mut().push((p1, p3, p2));
+				mesh.triangles_mut().push((p2, p1, p0));
+				mesh.triangles_mut().push((p2, p3, p1));
+			}
 		}
 
 		Self {
+			mesh,
 		}
-	}
-
-	pub fn as_mesh(&self) -> Mesh {
-		Mesh::new()
 	}
 }
 

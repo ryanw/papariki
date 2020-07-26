@@ -1,37 +1,31 @@
 use crate::geometry::{Mesh, LonLat};
 use crate::protos::vector_tile::{Tile as VectorTile};
-use crate::Tile;
-
-use std::fs;
-use std::io::Read;
-use flate2::read::GzDecoder;
-use quick_protobuf::{MessageRead, BytesReader, Reader};
-use reqwest;
+use crate::{WebTileSource, Tile, TileSource};
 
 
-#[derive(Clone, Debug)]
 pub struct Globe {
+	tiles: WebTileSource,
 }
 
 impl Globe {
 	pub fn new() -> Self {
 		Self {
+			tiles: WebTileSource::new(),
 		}
 	}
 
-	pub fn get_tile(&self, ll: &LonLat) -> Tile {
-		// Read from web
-		let mut res = reqwest::blocking::get("http://localhost:8880/data/v3/0/0/0.pbf").unwrap();
-		let mut gz_pbf = vec![];
-		res.read_to_end(&mut gz_pbf);
+	pub async fn get_tiles(&self, ll: &LonLat) -> Vec<Tile> {
+		println!("Fetching tile {:?}", ll);
 
-		// Decode gzip
-		let mut pbf = GzDecoder::new(&*gz_pbf);
-		let mut bytes = vec![];
-		pbf.read_to_end(&mut bytes);
+		let zoom = 1;
+		let mut tiles = vec![];
+		let n = 2i32.pow(zoom);
+		for y in 0..n {
+			for x in 0..n {
+				tiles.push(self.tiles.get_tile(x, y, zoom as i32).await);
+			}
+		}
 
-		// Decode PBF
-		let mut reader = Reader::from_bytes(bytes);
-		Tile::from_vector_tile(reader.read(|r, b| VectorTile::from_reader(r, b)).unwrap())
+		tiles
 	}
 }

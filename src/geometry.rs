@@ -1,12 +1,23 @@
+use wasm_bindgen::prelude::*;
 use crate::protos::vector_tile::mod_Tile::Feature;
 use nalgebra as na;
 use std::f32::consts::PI;
 
-pub type LonLat = na::Point2<f32>;
+#[wasm_bindgen]
+#[derive(Debug, Clone)]
+pub struct LonLat(na::Point2<f32>);
 
+impl LonLat {
+	pub fn new(lon: f32, lat: f32) -> Self {
+		Self(na::Point2::new(lon, lat))
+	}
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone)]
 pub struct Mesh {
-	pub vertices: Vec<na::Point3<f32>>,
-	pub triangles: Vec<(usize, usize, usize)>,
+	vertices: Vec<na::Point3<f32>>,
+	triangles: Vec<(usize, usize, usize)>,
 }
 
 impl Mesh {
@@ -15,6 +26,30 @@ impl Mesh {
 			vertices: vec![],
 			triangles: vec![],
 		}
+	}
+
+	pub fn vertices_as_vec(&self) -> Vec<f32> {
+		self.vertices.iter().map(|v| v.iter()).flatten().map(|f| *f).collect()
+	}
+
+	pub fn triangles_as_vec(&self) -> Vec<u32> {
+		self.triangles.iter().map(|v| vec![v.0 as u32, v.1 as u32, v.2 as u32]).flatten().collect()
+	}
+
+	pub fn vertices(&self) -> &Vec<na::Point3<f32>> {
+		&self.vertices
+	}
+
+	pub fn vertices_mut(&mut self) -> &mut Vec<na::Point3<f32>> {
+		&mut self.vertices
+	}
+
+	pub fn triangles(&self) -> &Vec<(usize, usize, usize)> {
+		&self.triangles
+	}
+
+	pub fn triangles_mut(&mut self) -> &mut Vec<(usize, usize, usize)> {
+		&mut self.triangles
 	}
 }
 
