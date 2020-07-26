@@ -153,14 +153,17 @@ impl Tile {
 				}
 			}
 
-			let thickness = 0.4;
+			let thickness = 0.2;
 			for edge in &edges {
 				let p0 = na::Point2::new(-edge.0.x, -edge.0.y);
 				let p1 = na::Point2::new(-edge.1.x, -edge.1.y);
+
 				let dir = na::Matrix3::new_rotation(PI / 2.0).transform_vector(&((p0 - p1).normalize() * thickness));
 				let mat = na::Matrix3::new_translation(&dir);
 				let p2 = mat.transform_point(&p0);
 				let p3 = mat.transform_point(&p1);
+				let p0 = mat.try_inverse().unwrap().transform_point(&p0);
+				let p1 = mat.try_inverse().unwrap().transform_point(&p1);
 				mesh.vertices_mut().push(lonlat_to_point(&p0));
 				mesh.vertices_mut().push(lonlat_to_point(&p1));
 				mesh.vertices_mut().push(lonlat_to_point(&p2));
@@ -186,7 +189,7 @@ impl Tile {
 }
 
 fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
-	let rad = 1.03;
+	let rad = 1.01;
 	let lon = (ll.x).to_radians() as f32;
 	let lat = (ll.y - 90.0).to_radians() as f32;
 

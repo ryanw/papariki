@@ -28,4 +28,8 @@ impl Globe {
 
 		tiles
 	}
+
+	pub async fn get_tile(&self, x: i32, y: i32, zoom: i32) -> Tile {
+		self.tiles.get_tile(x, y, zoom).await
+	}
 }
