@@ -153,11 +153,14 @@ impl Tile {
 				}
 			}
 
+			let thickness = 0.4;
 			for edge in &edges {
 				let p0 = na::Point2::new(-edge.0.x, -edge.0.y);
 				let p1 = na::Point2::new(-edge.1.x, -edge.1.y);
-				let p2 = na::Point2::new(p0.x + 1.0, p0.y);
-				let p3 = na::Point2::new(p1.x + 1.0, p1.y);
+				let dir = na::Matrix3::new_rotation(PI / 2.0).transform_vector(&((p0 - p1).normalize() * thickness));
+				let mat = na::Matrix3::new_translation(&dir);
+				let p2 = mat.transform_point(&p0);
+				let p3 = mat.transform_point(&p1);
 				mesh.vertices_mut().push(lonlat_to_point(&p0));
 				mesh.vertices_mut().push(lonlat_to_point(&p1));
 				mesh.vertices_mut().push(lonlat_to_point(&p2));
