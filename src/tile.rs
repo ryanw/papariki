@@ -121,7 +121,7 @@ impl Tile {
 							// FIXME Hack to remove glitchy lines
 							let line = (p0 - p1);
 							let norm = line.normalize();
-							if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && line.norm().abs() > 2.0 {
+							if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && line.norm().abs() > 3.0 {
 								//wasm::log(&format!("Glitchy {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
 							}
 							else if line.norm().abs() > 10.0 {
@@ -148,12 +148,14 @@ impl Tile {
 					if edges.len() > 0 {
 						let p0 = make_point(cursor);
 						let p1 = line_start;
-						//edges.push((p0, p1));
+						if (p0 - p1).norm().abs() < 4.0 {
+							edges.push((p0, p1));
+						}
 					}
 				}
 			}
 
-			let thickness = 0.2;
+			let thickness = 0.1;
 			for edge in &edges {
 				let p0 = na::Point2::new(-edge.0.x, -edge.0.y);
 				let p1 = na::Point2::new(-edge.1.x, -edge.1.y);
@@ -189,7 +191,7 @@ impl Tile {
 }
 
 fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
-	let rad = 1.01;
+	let rad = 1.005;
 	let lon = (ll.x).to_radians() as f32;
 	let lat = (ll.y - 90.0).to_radians() as f32;
 

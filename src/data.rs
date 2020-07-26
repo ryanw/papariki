@@ -49,7 +49,6 @@ impl WebTileSource {
 		let resp: Response = resp_value.dyn_into().unwrap();
 		let body: ArrayBuffer = JsFuture::from(resp.array_buffer().unwrap()).await.unwrap().dyn_into().unwrap();
 		let bytes = Uint8Array::new(&body).to_vec();
-		wasm::log(&format!("Hello, world! {:?}", bytes));
 
 		// Decode PBF
 		let mut reader = Reader::from_bytes(bytes);
