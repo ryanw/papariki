@@ -8,9 +8,9 @@ pub struct Globe {
 }
 
 impl Globe {
-	pub fn new() -> Self {
+	pub fn new(token: &str) -> Self {
 		Self {
-			tiles: WebTileSource::new(),
+			tiles: WebTileSource::new(token),
 		}
 	}
 

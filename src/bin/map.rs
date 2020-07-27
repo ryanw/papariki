@@ -1,11 +1,11 @@
 use papariki::geometry::LonLat;
 use papariki::globe::Globe;
+use futures::executor::block_on;
 
 fn main() {
-	let mut globe = Globe::new();
-	let ll = LonLat::new(0.0, 52.0);
-	let tile = globe.get_tile(&ll);
-	//let mesh = tile.as_mesh();
+	let mut globe = Globe::new(&env!("MAPBOX_TOKEN"));
+	let tile = block_on(globe.get_tile(0, 0, 1));
+	let verts: Vec<f32> = tile.vertices();
 
-	//println!("Hello, world! {:?}", tile.layers[0].name);
+	println!("Hello, world! {:?}", verts);
 }

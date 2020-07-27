@@ -10,6 +10,7 @@ use quick_protobuf::{MessageRead, BytesReader, Reader};
 use wasm_bindgen::{JsValue, JsCast};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Request, RequestInit, RequestMode, Response};
+use web_sys;
 use js_sys::{Uint8Array, ArrayBuffer};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,13 +25,21 @@ pub trait TileSource {
 
 #[derive(Debug, Default)]
 pub struct WebTileSource {
+	token: String,
 }
 
 impl WebTileSource {
+	pub fn new(token: &str) -> Self {
+		Self {
+			token: token.into(),
+		}
+	}
+}
+
+
+impl WebTileSource {
 	pub fn get_url(&self, x: i32, y: i32, z: i32) -> String {
-		let token = "pk.eyJ1IjoicmF0aWNpZGUiLCJhIjoiY2p1cmwxOWt2MDBkMjN6cGU5M2wyeDdyMCJ9.v3zWLlTBAHww7nYTZbTgLA";
-		format!("https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/{}/{}/{}.vector.pbf?access_token={}", z, x, y, token)
-		//format!("http://localhost:8880/data/v3/{}/{}/{}.pbf", z, x, y)
+		format!("https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/{}/{}/{}.vector.pbf?access_token={}", z, x, y, self.token)
 	}
 
 	#[cfg(target_arch = "wasm32")]
@@ -73,12 +82,5 @@ impl WebTileSource {
 		let vt = reader.read(|r, b| VectorTile::from_reader(r, b)).unwrap();
 		println!("Hello, world! {:?}", vt);
 		Tile::from_vector_tile(vt, x, y, z)
-	}
-}
-
-impl WebTileSource {
-	pub fn new() -> Self {
-		Self {
-		}
 	}
 }

@@ -69,6 +69,25 @@ impl Tile {
 					pixel_to_lonlat(&na::Point2::new(x as f32 + cursor.0, y as f32 + cursor.1), 1.0 + z as f32)
 				};
 
+				let mut add_edge = |p0: na::Point2<f32>, p1: na::Point2<f32>| {
+					let line = (p0 - p1);
+					let len = line.norm().abs();
+					let norm = line.normalize();
+					if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && len > 3.0 {
+						// Weird axis aligned line (borders)
+					}
+					else if len > 10.0 {
+						// Weird long line ??
+					}
+					else if len == 0.0 {
+						// Nothing to draw
+					}
+					else {
+						edges.push((p0, p1));
+					}
+				};
+
+
 				let mut line_start = make_point(cursor);
 				let mut line_closed = true;
 				'cmd: for i in 0..count {
@@ -77,7 +96,7 @@ impl Tile {
 							if !line_closed {
 								let p0 = make_point(cursor);
 								let p1 = line_start;
-								edges.push((p0, p1));
+								add_edge(p0, p1);
 							}
 
 							let param = geometry.remove(0) as i32;
@@ -118,40 +137,22 @@ impl Tile {
 								continue;
 							}
 
-							// FIXME Hack to remove glitchy lines
-							let line = (p0 - p1);
-							let norm = line.normalize();
-							if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && line.norm().abs() > 3.0 {
-								//wasm::log(&format!("Glitchy {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
-							}
-							else if line.norm().abs() > 10.0 {
-								//wasm::log(&format!("derp {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
-							}
-							else {
-								//wasm::log(&format!("p {:?} - {:?} = {:?} / {:?}", p0, p1, line.norm(), line.normalize()));
-								edges.push((p0, p1));
-							}
+							add_edge(p0, p1);
 						}
 						CLOSE_PATH => {
 							line_closed = true;
-							if edges.len() > 0 {
-								let p0 = make_point(cursor);
-								let p1 = line_start;
-								edges.push((p0, p1));
-							}
+							let p0 = make_point(cursor);
+							let p1 = line_start;
+							add_edge(p0, p1);
 						}
 						_ => panic!("Unknown command {}", cmd),
 					}
 				}
 
 				if !line_closed {
-					if edges.len() > 0 {
-						let p0 = make_point(cursor);
-						let p1 = line_start;
-						if (p0 - p1).norm().abs() < 4.0 {
-							edges.push((p0, p1));
-						}
-					}
+					let p0 = make_point(cursor);
+					let p1 = line_start;
+					add_edge(p0, p1);
 				}
 			}
 
@@ -166,6 +167,7 @@ impl Tile {
 				let p3 = mat.transform_point(&p1);
 				let p0 = mat.try_inverse().unwrap().transform_point(&p0);
 				let p1 = mat.try_inverse().unwrap().transform_point(&p1);
+
 				mesh.vertices_mut().push(lonlat_to_point(&p0));
 				mesh.vertices_mut().push(lonlat_to_point(&p1));
 				mesh.vertices_mut().push(lonlat_to_point(&p2));
@@ -195,11 +197,11 @@ fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
 	let lon = (ll.x).to_radians() as f32;
 	let lat = (ll.y - 90.0).to_radians() as f32;
 
-	na::Point3::new(
-		-rad * lat.sin() * lon.sin(),
-		-rad * lat.cos(),
-		rad * lat.sin() * lon.cos(),
-	)
+	let x = -rad * lat.sin() * lon.sin();
+	let y = -rad * lat.cos();
+	let z = rad * lat.sin() * lon.cos();
+
+	na::Point3::new(x, y, z)
 }
 
 fn pixel_to_lonlat(p: &na::Point2<f32>, zoom: f32) -> na::Point2<f32> {
@@ -212,6 +214,7 @@ fn pixel_to_lonlat(p: &na::Point2<f32>, zoom: f32) -> na::Point2<f32> {
 	let lon = (p.x - e) / bc;
 	let g = (p.y - e) / -cc;
 	let lat = (2.0f32 * g.exp().atan() - 0.5 * PI).to_degrees();
+
 
 	na::Point2::new(lon, lat)
 }
