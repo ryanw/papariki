@@ -2,39 +2,20 @@
 
 This is just some Rust + WASM thing I'm messing around with.
 
+The entry point for the wasm is src/wasm/mod.rs.
+
 ## Building
 
-This assumes you a working install of rust and wasm-pack.
+Build the npm package using `wasm-pack`.
 
-You'll need a Mapbox Vector Maps API Token, or your own vector tiles server.
-
-### Compile the rust into a node module
+To build a version that runs standalone and serve it with the basic python webserver:
 
 ```
-wasm-pack
-cd pkg
+wasm-pack build -t web
+python -m http.server 8000
 ```
 
-### Create a symlink to the node package
-
-```
-npm link
-```
-
-### In the Webpack/JS side, link to the symlink above
-
-```
-cd ../globe
-npm link papariki
-```
-
-### Start the webpack server
-
-Make sure to include your mapbox token here
-
-```
-MAPBOX_TOKEN=pk.eyFOOBAR npm run server
-```
+And open http://localhost:8000/?token=MAPBOX_TOKEN_HERE
 
 # Screenshot
 

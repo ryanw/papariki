@@ -22,11 +22,22 @@ js-sys = "0.3"
 [dependencies.web-sys]
 version = "0.3.4"
 features = [
+  'console',
+  'Document',
+  'Element',
   'Headers',
+  'HtmlCanvasElement',
+  'HtmlElement',
+  'Performance',
   'ReadableStream',
   'Request',
   'RequestInit',
   'RequestMode',
   'Response',
+  'WebGlBuffer',
+  'WebGlRenderingContext',
+  'WebGlProgram',
+  'WebGlShader',
+  'WebGlUniformLocation',
   'Window',
 ]

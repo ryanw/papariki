@@ -1,7 +1,7 @@
-use wasm_bindgen::prelude::*;
 use crate::protos::vector_tile::mod_Tile::Feature;
 use nalgebra as na;
 use std::f32::consts::PI;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
@@ -33,7 +33,11 @@ impl Mesh {
 	}
 
 	pub fn triangles_as_vec(&self) -> Vec<u32> {
-		self.triangles.iter().map(|v| vec![v.0 as u32, v.1 as u32, v.2 as u32]).flatten().collect()
+		self.triangles
+			.iter()
+			.map(|v| vec![v.0 as u32, v.1 as u32, v.2 as u32])
+			.flatten()
+			.collect()
 	}
 
 	pub fn vertices(&self) -> &Vec<na::Point3<f32>> {

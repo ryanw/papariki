@@ -1,6 +1,6 @@
+use futures::executor::block_on;
 use papariki::geometry::LonLat;
 use papariki::globe::Globe;
-use futures::executor::block_on;
 
 fn main() {
 	let mut globe = Globe::new(&env!("MAPBOX_TOKEN"));

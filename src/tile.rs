@@ -1,9 +1,9 @@
 use wasm_bindgen::prelude::*;
 
+use crate::geometry::{LonLat, Mesh};
+use crate::protos::vector_tile::Tile as VectorTile;
 use nalgebra as na;
 use std::f32::consts::PI;
-use crate::geometry::{Mesh, LonLat};
-use crate::protos::vector_tile::{Tile as VectorTile};
 
 #[cfg(target_arch = "wasm32")]
 use crate::wasm;
@@ -21,16 +21,14 @@ pub struct Tile {
 #[wasm_bindgen]
 impl Tile {
 	pub fn new() -> Self {
-		Self {
-			mesh: Mesh::new(),
-		}
+		Self { mesh: Mesh::new() }
 	}
 
 	pub fn mesh(&self) -> Mesh {
 		self.mesh.clone()
 	}
 
-	#[wasm_bindgen(js_name="toString")]
+	#[wasm_bindgen(js_name = "toString")]
 	pub fn to_string(&self) -> String {
 		format!("{:?}", self)
 	}
@@ -47,7 +45,6 @@ impl Tile {
 }
 
 impl Tile {
-
 	pub fn from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
 		let mut mesh = Mesh::new();
 
@@ -66,7 +63,10 @@ impl Tile {
 
 				let make_point = |cursor: (f32, f32)| {
 					// pixels coords range from 0.0 to 1.0
-					pixel_to_lonlat(&na::Point2::new(x as f32 + cursor.0, y as f32 + cursor.1), 1.0 + z as f32)
+					pixel_to_lonlat(
+						&na::Point2::new(x as f32 + cursor.0, y as f32 + cursor.1),
+						1.0 + z as f32,
+					)
 				};
 
 				let mut add_edge = |p0: na::Point2<f32>, p1: na::Point2<f32>| {
@@ -75,18 +75,14 @@ impl Tile {
 					let norm = line.normalize();
 					if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && len > 3.0 {
 						// Weird axis aligned line (borders)
-					}
-					else if len > 10.0 {
+					} else if len > 10.0 {
 						// Weird long line ??
-					}
-					else if len == 0.0 {
+					} else if len == 0.0 {
 						// Nothing to draw
-					}
-					else {
+					} else {
 						edges.push((p0, p1));
 					}
 				};
-
 
 				let mut line_start = make_point(cursor);
 				let mut line_closed = true;
@@ -158,8 +154,8 @@ impl Tile {
 
 			let thickness = 0.1;
 			for edge in &edges {
-				let p0 = na::Point2::new(-edge.0.x, -edge.0.y);
-				let p1 = na::Point2::new(-edge.1.x, -edge.1.y);
+				let p0 = na::Point2::new(edge.0.x, edge.0.y);
+				let p1 = na::Point2::new(edge.1.x, edge.1.y);
 
 				let dir = na::Matrix3::new_rotation(PI / 2.0).transform_vector(&((p0 - p1).normalize() * thickness));
 				let mat = na::Matrix3::new_translation(&dir);
@@ -186,9 +182,7 @@ impl Tile {
 			}
 		}
 
-		Self {
-			mesh,
-		}
+		Self { mesh }
 	}
 }
 
@@ -214,7 +208,6 @@ fn pixel_to_lonlat(p: &na::Point2<f32>, zoom: f32) -> na::Point2<f32> {
 	let lon = (p.x - e) / bc;
 	let g = (p.y - e) / -cc;
 	let lat = (2.0f32 * g.exp().atan() - 0.5 * PI).to_degrees();
-
 
 	na::Point2::new(lon, lat)
 }
