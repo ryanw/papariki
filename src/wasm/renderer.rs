@@ -76,6 +76,7 @@ pub struct WebGlRenderer {
 	element: Option<HtmlCanvasElement>,
 	meshes: Vec<GlMesh>,
 	program: Option<WebGlProgram>,
+	context: Option<WebGlRenderingContext>,
 	globe_transform: na::Matrix4<f32>,
 	camera: Camera,
 }
@@ -89,6 +90,7 @@ impl WebGlRenderer {
 			element: None,
 			meshes: vec![],
 			program: None,
+			context: None,
 			globe_transform: na::Matrix4::identity(),
 			camera: Camera::new(width as f32, height as f32),
 		}
@@ -124,8 +126,21 @@ impl WebGlRenderer {
 	}
 
 	fn initialize_webgl(&mut self) {
+		if let Some(el) = &self.element {
+			let ctx = el.get_context("webgl")
+				.unwrap()
+				.unwrap()
+				.dyn_into::<WebGlRenderingContext>()
+				.unwrap();
+			self.context = Some(ctx);
+		} else {
+			wasm::log("Unable to obtain WebGlRenderingContext");
+			return;
+		};
+
 		let vertex_shader = self.create_vertex_shader(VERTEX_GLSL).unwrap();
 		let fragment_shader = self.create_fragment_shader(FRAGMENT_GLSL).unwrap();
+
 
 		if let Some(gl) = self.webgl_context() {
 			// Enable 32bit index buffers
@@ -212,18 +227,8 @@ impl WebGlRenderer {
 		}
 	}
 
-	pub fn webgl_context(&self) -> Option<WebGlRenderingContext> {
-		if let Some(el) = &self.element {
-			Some(
-				el.get_context("webgl")
-					.unwrap()
-					.unwrap()
-					.dyn_into::<WebGlRenderingContext>()
-					.unwrap(),
-			)
-		} else {
-			None
-		}
+	pub fn webgl_context(&self) -> Option<&WebGlRenderingContext> {
+		self.context.as_ref()
 	}
 
 	fn create_shader(&self, kind: u32, glsl: &str) -> Option<WebGlShader> {
@@ -234,6 +239,7 @@ impl WebGlRenderer {
 
 			Some(shader)
 		} else {
+			wasm::log("Failed to create shader");
 			None
 		}
 	}
