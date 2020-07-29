@@ -19,4 +19,5 @@ And open http://localhost:8000/?token=MAPBOX_TOKEN_HERE
 
 # Screenshot
 
-![Screenshot](https://user-images.githubusercontent.com/3372/88506717-ac89b380-d02e-11ea-9153-20e3c4e5fcb1.png)
+![Screenshot](https://user-images.githubusercontent.com/3372/88788752-e226cc00-d1e9-11ea-9604-294c4cba6543.png)
+

@@ -13,16 +13,22 @@ static VERTEX_GLSL: &'static str = "
 	uniform mat4 view_proj;
 	uniform mat4 model;
 	attribute vec3 position;
+	varying vec4 color;
 
 	void main(void) {
 		mat4 mvp = view_proj * model;
 		gl_Position = mvp * vec4(position, 1.0);
+		color = (vec4(position, 1.0) * 0.5 + 0.5) * (2.0 - (gl_Position.z / 2.0));
 	}
 ";
 
 static FRAGMENT_GLSL: &'static str = "
+	precision mediump float;
+
+	varying vec4 color;
+
 	void main(void) {
-		gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+		gl_FragColor = color;
 	}
 ";
 
