@@ -41,11 +41,10 @@ impl Tile {
 
 		'feature: for feature in &layer.features {
 			let mut edges = vec![];
-			let mut geometry = feature.geometry.clone();
+			let mut geometry = feature.geometry.clone().into_iter();
 			let mut cursor = (0.0, 0.0);
 
-			'geom: while geometry.len() > 0 {
-				let cmdint = geometry.remove(0) as i32;
+			'geom: while let Some(cmdint) = geometry.next() {
 				let cmd = (cmdint & 0x7) as u32;
 				let count = (cmdint >> 3) as u32;
 
@@ -74,7 +73,7 @@ impl Tile {
 
 				let mut line_start = make_point(cursor);
 				let mut line_closed = true;
-				'cmd: for i in 0..count {
+				'cmd: for _ in 0..count {
 					match cmd {
 						MOVE_TO => {
 							if !line_closed {
@@ -83,9 +82,9 @@ impl Tile {
 								add_edge(p0, p1);
 							}
 
-							let param = geometry.remove(0) as i32;
+							let param = geometry.next().unwrap() as i32;
 							let arg0 = ((param >> 1) ^ (-(param & 1)));
-							let param = geometry.remove(0) as i32;
+							let param = geometry.next().unwrap() as i32;
 							let arg1 = ((param >> 1) ^ (-(param & 1)));
 
 							cursor.0 += arg0 as f32 / extent;
@@ -94,9 +93,9 @@ impl Tile {
 						}
 						LINE_TO => {
 							line_closed = false;
-							let param = geometry.remove(0) as i32;
+							let param = geometry.next().unwrap() as i32;
 							let arg0 = ((param >> 1) ^ (-(param & 1)));
-							let param = geometry.remove(0) as i32;
+							let param = geometry.next().unwrap() as i32;
 							let arg1 = ((param >> 1) ^ (-(param & 1)));
 
 							let p0 = make_point(cursor);

@@ -207,7 +207,6 @@ impl WebGlRenderer {
 				let model_uniform = gl.get_uniform_location(program.unwrap(), "model");
 				gl.uniform_matrix4fv_with_f32_array(model_uniform.as_ref(), false, mesh.transform.as_slice());
 
-				//wasm::log(&format!("Drawing draw mesh with {} vertices", mesh.count));
 				gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&mesh.index_buffer));
 				gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&mesh.vertex_buffer));
 				// Send vertices to vertex shader "position"
