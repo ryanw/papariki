@@ -1,14 +1,9 @@
-use wasm_bindgen::prelude::*;
-
-pub mod geometry;
-pub mod protos;
-pub use geometry::LonLat;
-pub mod globe;
-pub use globe::Globe;
-pub mod tile;
-pub use tile::Tile;
-mod data;
-pub use data::{TileSource, WebTileSource};
 pub mod camera;
+pub mod data;
+pub mod geometry;
+pub mod globe;
+pub mod mesh;
+pub mod protos;
+pub mod tile;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

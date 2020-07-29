@@ -1,59 +1,14 @@
+use crate::mesh::Mesh;
 use crate::protos::vector_tile::mod_Tile::Feature;
 use nalgebra as na;
 use std::f32::consts::PI;
-use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct LonLat(na::Point2<f32>);
 
 impl LonLat {
 	pub fn new(lon: f32, lat: f32) -> Self {
 		Self(na::Point2::new(lon, lat))
-	}
-}
-
-#[wasm_bindgen]
-#[derive(Debug, Clone)]
-pub struct Mesh {
-	vertices: Vec<na::Point3<f32>>,
-	triangles: Vec<(usize, usize, usize)>,
-}
-
-impl Mesh {
-	pub fn new() -> Self {
-		Self {
-			vertices: vec![],
-			triangles: vec![],
-		}
-	}
-
-	pub fn vertices_as_vec(&self) -> Vec<f32> {
-		self.vertices.iter().map(|v| v.iter()).flatten().map(|f| *f).collect()
-	}
-
-	pub fn triangles_as_vec(&self) -> Vec<u32> {
-		self.triangles
-			.iter()
-			.map(|v| vec![v.0 as u32, v.1 as u32, v.2 as u32])
-			.flatten()
-			.collect()
-	}
-
-	pub fn vertices(&self) -> &Vec<na::Point3<f32>> {
-		&self.vertices
-	}
-
-	pub fn vertices_mut(&mut self) -> &mut Vec<na::Point3<f32>> {
-		&mut self.vertices
-	}
-
-	pub fn triangles(&self) -> &Vec<(usize, usize, usize)> {
-		&self.triangles
-	}
-
-	pub fn triangles_mut(&mut self) -> &mut Vec<(usize, usize, usize)> {
-		&mut self.triangles
 	}
 }
 
@@ -66,6 +21,7 @@ impl Feature {
 	}
 }
 
+// Convert a lon/lat into a 3D cartesian point
 fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
 	let rad = 1.03;
 	let lon = (ll.x).to_radians() as f32;
@@ -78,6 +34,7 @@ fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
 	)
 }
 
+// Convert a Mercator coordinate, between (0.0, 0.0) and (1.0, 1.0), into a lon/lat
 fn pixel_to_lonlat(p: &na::Point2<f32>, zoom: f32) -> na::Point2<f32> {
 	let tile_size = 1.0f32;
 

@@ -1,6 +1,5 @@
-use wasm_bindgen::prelude::*;
-
-use crate::geometry::{LonLat, Mesh};
+use crate::geometry::LonLat;
+use crate::mesh::Mesh;
 use crate::protos::vector_tile::Tile as VectorTile;
 use nalgebra as na;
 use std::f32::consts::PI;
@@ -12,13 +11,11 @@ const MOVE_TO: u32 = 0x1;
 const LINE_TO: u32 = 0x2;
 const CLOSE_PATH: u32 = 0x7;
 
-#[wasm_bindgen]
 #[derive(Clone, Debug)]
 pub struct Tile {
 	mesh: Mesh,
 }
 
-#[wasm_bindgen]
 impl Tile {
 	pub fn new() -> Self {
 		Self { mesh: Mesh::new() }
@@ -28,23 +25,14 @@ impl Tile {
 		self.mesh.clone()
 	}
 
-	#[wasm_bindgen(js_name = "toString")]
-	pub fn to_string(&self) -> String {
-		format!("{:?}", self)
-	}
-
-	#[wasm_bindgen]
 	pub fn vertices(&self) -> Vec<f32> {
 		self.mesh.vertices_as_vec()
 	}
 
-	#[wasm_bindgen]
 	pub fn triangles(&self) -> Vec<u32> {
 		self.mesh.triangles_as_vec()
 	}
-}
 
-impl Tile {
 	pub fn from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
 		let mut mesh = Mesh::new();
 

@@ -1,7 +1,8 @@
 mod renderer;
 use renderer::WebGlRenderer;
 
-use crate::{Globe, LonLat, Tile};
+use crate::globe::Globe;
+use crate::tile::Tile;
 use js_sys::{self, Array};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::prelude::*;

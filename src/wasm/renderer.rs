@@ -1,20 +1,21 @@
 use crate::camera::Camera;
 use crate::globe::Globe;
+use crate::mesh::Mesh;
 use crate::wasm;
-use crate::geometry::Mesh;
 use js_sys::{ArrayBuffer, Float32Array, Uint16Array, Uint32Array};
 use nalgebra as na;
-use wasm_bindgen::prelude::*;
+use std::f32::consts::PI;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, HtmlElement, WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader};
-use std::f32::consts::PI;
 
 // FIXME the coordinates are all kinds of messed up. X and Z are swapped.
 static VERTEX_GLSL: &'static str = "
-	uniform mat4 mvp;
+	uniform mat4 view_proj;
+	uniform mat4 model;
 	attribute vec3 position;
 
 	void main(void) {
+		mat4 mvp = view_proj * model;
 		gl_Position = mvp * vec4(position, 1.0);
 	}
 ";
@@ -25,35 +26,52 @@ static FRAGMENT_GLSL: &'static str = "
 	}
 ";
 
-#[wasm_bindgen]
+struct GlMesh {
+	index_buffer: WebGlBuffer,
+	vertex_buffer: WebGlBuffer,
+	transform: na::Matrix4<f32>,
+	count: u32,
+}
+
+impl GlMesh {
+	pub fn new(gl: &WebGlRenderingContext) -> Self {
+		Self {
+			vertex_buffer: gl.create_buffer().unwrap(),
+			index_buffer: gl.create_buffer().unwrap(),
+			transform: na::Matrix4::identity(),
+			count: 0,
+		}
+	}
+	pub fn upload_vertices(&mut self, gl: &WebGlRenderingContext, vertices: &[f32]) {
+		gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.vertex_buffer));
+		gl.buffer_data_with_opt_array_buffer(
+			WebGlRenderingContext::ARRAY_BUFFER,
+			Some(&Float32Array::from(vertices).buffer()),
+			WebGlRenderingContext::STATIC_DRAW,
+		);
+	}
+
+	pub fn upload_indices(&mut self, gl: &WebGlRenderingContext, indices: &[u32]) {
+		self.count = indices.len() as u32;
+
+		gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.index_buffer));
+		gl.buffer_data_with_opt_array_buffer(
+			WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
+			Some(&Uint32Array::from(indices).buffer()),
+			WebGlRenderingContext::STATIC_DRAW,
+		);
+	}
+}
+
 pub struct WebGlRenderer {
 	width: i32,
 	height: i32,
 	last_frame_at: f64,
 	element: Option<HtmlCanvasElement>,
-	element_counts: Vec<i32>,
-	index_buffers: Vec<WebGlBuffer>,
-	vertex_buffers: Vec<WebGlBuffer>,
+	meshes: Vec<GlMesh>,
 	program: Option<WebGlProgram>,
-
-	model: na::Matrix4<f32>,
+	globe_transform: na::Matrix4<f32>,
 	camera: Camera,
-}
-
-#[wasm_bindgen]
-impl WebGlRenderer {
-	pub fn attach(&mut self, container: &HtmlElement) {
-		wasm::log("Attaching WebGlRenderer");
-		self.attach_to_element(container);
-		self.initialize_webgl();
-	}
-
-	pub fn tick(&mut self) {
-		let now = wasm::now() / 1000.0;
-		let dt = (now - self.last_frame_at) as f32;
-		self.model *= na::Matrix4::from_euler_angles(0.0, -0.5 * dt, 0.0);
-		self.last_frame_at = now;
-	}
 }
 
 impl WebGlRenderer {
@@ -63,14 +81,27 @@ impl WebGlRenderer {
 			height,
 			last_frame_at: wasm::now(),
 			element: None,
-			element_counts: vec![],
-			index_buffers: vec![],
-			vertex_buffers: vec![],
+			meshes: vec![],
 			program: None,
-
-			model: na::Matrix4::from_euler_angles(0.0, PI / 2.0, 0.0),
+			globe_transform: na::Matrix4::identity(),
 			camera: Camera::new(width as f32, height as f32),
 		}
+	}
+
+	pub fn attach(&mut self, container: &HtmlElement) {
+		wasm::log("Attaching WebGlRenderer");
+		self.attach_to_element(container);
+		self.initialize_webgl();
+	}
+
+	pub fn tick(&mut self) {
+		let now = wasm::now() / 1000.0;
+		let dt = (now - self.last_frame_at) as f32;
+		self.globe_transform *= na::Matrix4::from_euler_angles(0.0, -0.5 * dt, 0.0);
+		for mesh in &mut self.meshes {
+			mesh.transform = self.globe_transform;
+		}
+		self.last_frame_at = now;
 	}
 
 	fn attach_to_element(&mut self, container: &HtmlElement) {
@@ -80,9 +111,9 @@ impl WebGlRenderer {
 			.unwrap()
 			.dyn_into::<HtmlCanvasElement>()
 			.unwrap();
-		el.set_attribute("width", &self.width.to_string());
-		el.set_attribute("height", &self.height.to_string());
-		container.append_child(&el);
+		el.set_attribute("width", &self.width.to_string()).unwrap();
+		el.set_attribute("height", &self.height.to_string()).unwrap();
+		container.append_child(&el).unwrap();
 		self.element = Some(el);
 	}
 
@@ -92,7 +123,7 @@ impl WebGlRenderer {
 
 		if let Some(gl) = self.webgl_context() {
 			// Enable 32bit index buffers
-			gl.get_extension("OES_element_index_uint");
+			gl.get_extension("OES_element_index_uint").unwrap();
 
 			gl.viewport(0, 0, self.width, self.height);
 			let program = gl.create_program().unwrap();
@@ -113,16 +144,17 @@ impl WebGlRenderer {
 	}
 
 	pub fn add_mesh(&mut self, mesh: Mesh) {
-		self.add_vertices(mesh.vertices_as_vec());
-		self.add_triangles(mesh.triangles_as_vec());
-	}
+		wasm::log("Adding mesh");
+		let vertices = mesh.vertices_as_vec();
+		let triangles = mesh.triangles_as_vec();
+		if let Some(gl) = &self.webgl_context() {
+			let mut gl_mesh = GlMesh::new(gl);
 
-	pub fn model(&self) -> &na::Matrix4<f32> {
-		&self.model
-	}
+			gl_mesh.upload_vertices(gl, vertices.as_slice());
+			gl_mesh.upload_indices(gl, triangles.as_slice());
 
-	pub fn model_mut(&mut self) -> &mut na::Matrix4<f32> {
-		&mut self.model
+			self.meshes.push(gl_mesh);
+		}
 	}
 
 	pub fn update_uniforms(&mut self) {
@@ -132,42 +164,9 @@ impl WebGlRenderer {
 
 		let program = self.program.as_ref().unwrap();
 		if let Some(gl) = &self.webgl_context() {
-			let mvp = self.camera.projection() * self.camera.view() * self.model;
-			let mvp_uniform = gl.get_uniform_location(program, "mvp");
-			gl.uniform_matrix4fv_with_f32_array(mvp_uniform.as_ref(), false, mvp.as_slice());
-		}
-	}
-
-	pub fn add_vertices(&mut self, vertices: Vec<f32>) {
-		let program = self.program.as_ref().unwrap();
-		if let Some(gl) = &self.webgl_context() {
-			// Create and populate vertex buffer
-			let vertex_buffer = gl.create_buffer().unwrap();
-			gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&vertex_buffer));
-			gl.buffer_data_with_opt_array_buffer(
-				WebGlRenderingContext::ARRAY_BUFFER,
-				Some(&Float32Array::from(&vertices[..]).buffer()),
-				WebGlRenderingContext::STATIC_DRAW,
-			);
-
-
-			self.vertex_buffers.push(vertex_buffer);
-		}
-	}
-
-	pub fn add_triangles(&mut self, triangles: Vec<u32>) {
-		if let Some(gl) = &self.webgl_context() {
-			self.element_counts.push(triangles.len() as i32);
-
-			// Create and populate index buffer
-			let index_buffer = gl.create_buffer().unwrap();
-			gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
-			gl.buffer_data_with_opt_array_buffer(
-				WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-				Some(&Uint32Array::from(&triangles[..]).buffer()),
-				WebGlRenderingContext::STATIC_DRAW,
-			);
-			self.index_buffers.push(index_buffer);
+			let vp = self.camera.projection() * self.camera.view();
+			let vp_uniform = gl.get_uniform_location(program, "view_proj");
+			gl.uniform_matrix4fv_with_f32_array(vp_uniform.as_ref(), false, vp.as_slice());
 		}
 	}
 
@@ -180,32 +179,29 @@ impl WebGlRenderer {
 			gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
 		}
 
-		let count = self.element_counts.len();
-		for i in 0..count {
-			let index_buffer = self.index_buffers.get(i);
-			let vertex_buffer = self.vertex_buffers.get(i);
-			let element_count = *self.element_counts.get(i).unwrap_or(&0);
-			if element_count == 0 {
+		for mesh in &self.meshes {
+			if mesh.count == 0 {
 				continue;
 			}
 			if let Some(gl) = &self.webgl_context() {
-				//wasm::log(&format!("Drawing draw mesh {} with {} vertices", i, element_count));
-				gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, index_buffer);
-				gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, vertex_buffer);
+				let model_uniform = gl.get_uniform_location(program.unwrap(), "model");
+				gl.uniform_matrix4fv_with_f32_array(model_uniform.as_ref(), false, mesh.transform.as_slice());
+
+				//wasm::log(&format!("Drawing draw mesh with {} vertices", mesh.count));
+				gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&mesh.index_buffer));
+				gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&mesh.vertex_buffer));
 				// Send vertices to vertex shader "position"
 				let position_attrib = gl.get_attrib_location(program.unwrap(), "position") as u32;
 				gl.vertex_attrib_pointer_with_f64(position_attrib, 3, WebGlRenderingContext::FLOAT, false, 0, 0.0);
 
-
 				gl.draw_elements_with_i32(
 					WebGlRenderingContext::TRIANGLES,
-					element_count,
+					mesh.count as i32,
 					WebGlRenderingContext::UNSIGNED_INT,
 					0,
 				);
-			}
-			else {
-				wasm::log(&format!("Failed to draw mesh {} with {} vertices", i, element_count));
+			} else {
+				wasm::log(&format!("Failed to draw mesh with {} vertices", mesh.count));
 			}
 		}
 	}

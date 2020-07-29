@@ -1,5 +1,5 @@
 use crate::protos::vector_tile::Tile as VectorTile;
-use crate::Tile;
+use crate::tile::Tile;
 
 use flate2::read::GzDecoder;
 use quick_protobuf::{BytesReader, MessageRead, Reader};
