@@ -5,6 +5,7 @@ use crate::globe::Globe;
 use crate::tile::Tile;
 use js_sys::{self, Array};
 use std::{cell::RefCell, rc::Rc};
+use std::panic;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::{closure::Closure, JsValue};
@@ -32,6 +33,8 @@ pub struct Environment {
 
 #[wasm_bindgen]
 pub fn attach(container: &HtmlElement, token: &str) -> Environment {
+	panic::set_hook(Box::new(console_error_panic_hook::hook));
+
 	let mut env = Environment {
 		globe: Rc::new(RefCell::new(Globe::new(token))),
 		renderer: Rc::new(RefCell::new(WebGlRenderer::new(1024, 768))),

@@ -70,6 +70,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d29eb15132782371f71da8f947dba48b3717bdb6fa771b9b434d645e40a7193"
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8d976903543e0c48546a91908f21588a680a8c8f984df9a5d69feccb2b2a211"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "cookie"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -365,6 +375,7 @@ checksum = "0b631f7e854af39a1739f401cf34a8a013dfe09eac4fa4dba91e9768bd28168d"
 name = "papariki"
 version = "0.1.0"
 dependencies = [
+ "console_error_panic_hook",
  "flate2",
  "futures-preview",
  "js-sys",
