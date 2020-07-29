@@ -8,7 +8,6 @@ use std::f32::consts::PI;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, HtmlElement, WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader};
 
-// FIXME the coordinates are all kinds of messed up. X and Z are swapped.
 static VERTEX_GLSL: &'static str = "
 	uniform mat4 view_proj;
 	uniform mat4 model;
@@ -142,7 +141,7 @@ impl WebGlRenderer {
 		let fragment_shader = self.create_fragment_shader(FRAGMENT_GLSL).unwrap();
 
 
-		if let Some(gl) = self.webgl_context() {
+		if let Some(gl) = &self.context {
 			// Enable 32bit index buffers
 			gl.get_extension("OES_element_index_uint").unwrap();
 
@@ -168,7 +167,7 @@ impl WebGlRenderer {
 		wasm::log("Adding mesh");
 		let vertices = mesh.vertices_as_vec();
 		let triangles = mesh.triangles_as_vec();
-		if let Some(gl) = &self.webgl_context() {
+		if let Some(gl) = &self.context {
 			let mut gl_mesh = GlMesh::new(gl);
 
 			gl_mesh.upload_vertices(gl, vertices.as_slice());
@@ -184,7 +183,7 @@ impl WebGlRenderer {
 		}
 
 		let program = self.program.as_ref().unwrap();
-		if let Some(gl) = &self.webgl_context() {
+		if let Some(gl) = &self.context {
 			let vp = self.camera.projection() * self.camera.view();
 			let vp_uniform = gl.get_uniform_location(program, "view_proj");
 			gl.uniform_matrix4fv_with_f32_array(vp_uniform.as_ref(), false, vp.as_slice());
@@ -195,7 +194,7 @@ impl WebGlRenderer {
 		self.update_uniforms();
 
 		let program = self.program.as_ref();
-		if let Some(gl) = &self.webgl_context() {
+		if let Some(gl) = &self.context {
 			gl.use_program(program);
 			gl.clear(WebGlRenderingContext::COLOR_BUFFER_BIT);
 		}
@@ -204,7 +203,7 @@ impl WebGlRenderer {
 			if mesh.count == 0 {
 				continue;
 			}
-			if let Some(gl) = &self.webgl_context() {
+			if let Some(gl) = &self.context {
 				let model_uniform = gl.get_uniform_location(program.unwrap(), "model");
 				gl.uniform_matrix4fv_with_f32_array(model_uniform.as_ref(), false, mesh.transform.as_slice());
 
@@ -227,12 +226,8 @@ impl WebGlRenderer {
 		}
 	}
 
-	pub fn webgl_context(&self) -> Option<&WebGlRenderingContext> {
-		self.context.as_ref()
-	}
-
 	fn create_shader(&self, kind: u32, glsl: &str) -> Option<WebGlShader> {
-		if let Some(gl) = self.webgl_context() {
+		if let Some(gl) = &self.context {
 			let shader = gl.create_shader(kind).unwrap();
 			gl.shader_source(&shader, glsl);
 			gl.compile_shader(&shader);
