@@ -90,7 +90,7 @@ impl WebGlRenderer {
 			meshes: vec![],
 			program: None,
 			context: None,
-			globe_transform: na::Matrix4::identity(),
+			globe_transform: na::Matrix4::from_euler_angles(0.1, 0.0, 0.41),
 			camera: Camera::new(width as f32, height as f32),
 		}
 	}

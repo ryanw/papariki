@@ -49,14 +49,13 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 		let renderer = env.renderer.clone();
 		async move {
 			let mut globe = globe.borrow_mut();
-			let zoom = 1;
+			let zoom = 2;
 			let n = 2_i32.pow(zoom);
 
 			for y in 0..n {
 				for x in 0..n {
 					let tile = globe.get_tile(x, y, zoom as i32).await;
-					let mut renderer = renderer.borrow_mut();
-					renderer.add_mesh(tile.mesh());
+					renderer.borrow_mut().add_mesh(tile.mesh());
 				}
 			}
 			Ok(true.into())
