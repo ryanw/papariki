@@ -30,7 +30,7 @@ impl Camera {
 		Self {
 			width,
 			height,
-			projection: na::Perspective3::new(width / height, 3.14 / FOV, 0.1, 1000.0),
+			projection: na::Perspective3::new(width / height, 3.14 / FOV, 0.001, 100.0),
 			..Default::default()
 		}
 	}

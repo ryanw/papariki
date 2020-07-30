@@ -3,9 +3,12 @@ use crate::mesh::Mesh;
 use crate::wasm::{self, web, GlMesh};
 use nalgebra as na;
 use std::cell::RefCell;
+use std::f32::consts::PI;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::{MouseEvent, HtmlCanvasElement, HtmlElement, WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{
+	HtmlCanvasElement, HtmlElement, MouseEvent, WebGlProgram, WebGlRenderingContext, WebGlShader, WheelEvent,
+};
 
 static VERTEX_GLSL: &'static str = "
 	uniform mat4 view_proj;
@@ -34,6 +37,7 @@ static FRAGMENT_GLSL: &'static str = "
 pub struct InputState {
 	mouse_down: bool,
 	mouse_position: (i32, i32),
+	wheel_position: (f32, f32),
 }
 
 impl InputState {
@@ -51,8 +55,10 @@ pub struct WebGlRenderer {
 	program: Option<WebGlProgram>,
 	context: Option<WebGlRenderingContext>,
 	globe_rotation: na::Vector3<f32>,
+	zoom: f32,
 	input_state: Rc<RefCell<InputState>>,
 	prev_mouse_position: Option<(i32, i32)>,
+	prev_wheel_position: Option<(f32, f32)>,
 	camera: Camera,
 }
 
@@ -66,10 +72,12 @@ impl WebGlRenderer {
 			meshes: vec![],
 			program: None,
 			context: None,
+			zoom: 1.0,
 			//globe_transform: na::Matrix4::from_euler_angles(0.1, 0.0, 0.41),
 			globe_rotation: na::Vector3::default(),
 			camera: Camera::new(width as f32, height as f32),
 			prev_mouse_position: Some((0, 0)),
+			prev_wheel_position: Some((0.0, 0.0)),
 			input_state: Rc::new(RefCell::new(InputState::new())),
 		}
 	}
@@ -85,6 +93,19 @@ impl WebGlRenderer {
 		let now = wasm::now() / 1000.0;
 		let dt = (now - self.last_frame_at) as f32;
 		if let Ok(state) = self.input_state.try_borrow() {
+			// Update mousewheel zooming
+			let dy = (state.wheel_position.1 - self.prev_wheel_position.as_ref().unwrap().1) as f32;
+			if dy != 0.0 {
+				self.zoom -= dy / 15.0;
+
+				if self.zoom > 2.98 {
+					self.zoom = 2.98;
+				}
+				if self.zoom < 0.33 {
+					self.zoom = 0.33;
+				}
+			}
+			self.prev_wheel_position = Some(state.wheel_position.clone());
 
 			// Update rotation
 			if state.mouse_down {
@@ -93,9 +114,16 @@ impl WebGlRenderer {
 				} else {
 					let dx = (state.mouse_position.0 - self.prev_mouse_position.as_ref().unwrap().0) as f32;
 					let dy = (state.mouse_position.1 - self.prev_mouse_position.as_ref().unwrap().1) as f32;
-					self.globe_rotation.x += dy * 0.5 * dt;
-					self.globe_rotation.y += dx * -0.5 * dt;
+					self.globe_rotation.x += dy * 0.0025 / self.zoom;
+					self.globe_rotation.y += dx * -0.0025 / self.zoom;
 
+					let l = PI * 0.4;
+					if self.globe_rotation.x > l {
+						self.globe_rotation.x = l
+					}
+					if self.globe_rotation.x < -l {
+						self.globe_rotation.x = -l
+					}
 
 					// Save mouse position for next time
 					if self.prev_mouse_position.is_some() {
@@ -107,8 +135,12 @@ impl WebGlRenderer {
 				self.globe_rotation.y += -0.5 * dt;
 			}
 
+			// Update camera
+			self.camera.position = na::Point3::new(0.0, 0.0, self.zoom - 3.7);
+
 			// Update mesh
-			let model = na::Matrix4::from_euler_angles(self.globe_rotation.x, 0.0, 0.0) * na::Matrix4::from_euler_angles(0.0, self.globe_rotation.y, 0.0);
+			let model = na::Matrix4::from_euler_angles(self.globe_rotation.x, 0.0, 0.0)
+				* na::Matrix4::from_euler_angles(0.0, self.globe_rotation.y, 0.0);
 			for mesh in &mut self.meshes {
 				mesh.transform = model;
 			}
@@ -134,7 +166,7 @@ impl WebGlRenderer {
 	fn add_event_listeners(&mut self) {
 		if let Some(el) = &mut self.element {
 			let window = web_sys::window().unwrap();
-			let document = window.document().unwrap();
+			let _document = window.document().unwrap();
 
 			let state = self.input_state.clone();
 			web::add_event_listener(&el, "mousedown", move |e: MouseEvent| {
@@ -144,7 +176,7 @@ impl WebGlRenderer {
 					state.mouse_position = (x, y);
 					state.mouse_down = true;
 				}
-			});
+			}).unwrap();
 
 			let state = self.input_state.clone();
 			web::add_event_listener(&window, "mouseup", move |e: MouseEvent| {
@@ -154,7 +186,7 @@ impl WebGlRenderer {
 					state.mouse_position = (x, y);
 					state.mouse_down = false;
 				}
-			});
+			}).unwrap();
 
 			let state = self.input_state.clone();
 			web::add_event_listener(&window, "mousemove", move |e: MouseEvent| {
@@ -166,7 +198,31 @@ impl WebGlRenderer {
 					let y = e.client_y();
 					state.mouse_position = (x, y);
 				}
-			});
+			}).unwrap();
+
+			let state = self.input_state.clone();
+			web::add_event_listener(&window, "wheel", move |e: WheelEvent| {
+				if let Ok(mut state) = state.try_borrow_mut() {
+					let mut x = e.delta_x() as f32;
+					let mut y = e.delta_y() as f32;
+					// FIXME adjustment for chrome vs firefox
+					if x > 50.0 {
+						x -= 50.0;
+					}
+					if x < -50.0 {
+						x += 50.0;
+					}
+					if y > 50.0 {
+						y -= 50.0;
+					}
+					if y < -50.0 {
+						y += 50.0;
+					}
+
+					state.wheel_position.0 += x;
+					state.wheel_position.1 += y;
+				}
+			}).unwrap();
 		}
 	}
 
@@ -190,6 +246,7 @@ impl WebGlRenderer {
 		if let Some(gl) = &self.context {
 			// Enable 32bit index buffers
 			gl.get_extension("OES_element_index_uint").unwrap();
+			gl.enable(WebGlRenderingContext::DEPTH_TEST);
 
 			gl.viewport(0, 0, self.width, self.height);
 			let program = gl.create_program().unwrap();
