@@ -1,19 +1,6 @@
+use crate::data::WebTileSource;
 use crate::geometry::LonLat;
-use crate::mesh::Mesh;
-use crate::protos::vector_tile::Tile as VectorTile;
 use crate::tile::Tile;
-use crate::data::{TileSource, WebTileSource};
-use futures::executor::block_on;
-use js_sys::{ArrayBuffer, Float32Array, Promise};
-
-#[cfg(target_arch = "wasm32")]
-use crate::wasm;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::{JsValue, JsCast};
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::{future_to_promise, spawn_local};
-#[cfg(target_arch = "wasm32")]
-use web_sys::{HtmlCanvasElement, HtmlElement, WebGlRenderingContext, WebGlShader};
 
 pub struct Globe {
 	tiles: WebTileSource,
@@ -27,7 +14,7 @@ impl Globe {
 
 	pub async fn update(&mut self) {
 		if let Some((x, y, z)) = self.tile_queue.pop() {
-			let tile = self.tiles.get_tile(x, y, z).await;
+			let _tile = self.tiles.get_tile(x, y, z).await;
 		}
 	}
 }

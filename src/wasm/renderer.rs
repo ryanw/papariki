@@ -1,12 +1,9 @@
 use crate::camera::Camera;
-use crate::globe::Globe;
 use crate::mesh::Mesh;
-use crate::wasm;
-use js_sys::{ArrayBuffer, Float32Array, Uint16Array, Uint32Array};
+use crate::wasm::{self, GlMesh};
 use nalgebra as na;
-use std::f32::consts::PI;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlCanvasElement, HtmlElement, WebGlBuffer, WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{HtmlCanvasElement, HtmlElement, WebGlProgram, WebGlRenderingContext, WebGlShader};
 
 static VERTEX_GLSL: &'static str = "
 	uniform mat4 view_proj;
@@ -30,43 +27,6 @@ static FRAGMENT_GLSL: &'static str = "
 		gl_FragColor = color;
 	}
 ";
-
-struct GlMesh {
-	index_buffer: WebGlBuffer,
-	vertex_buffer: WebGlBuffer,
-	transform: na::Matrix4<f32>,
-	count: u32,
-}
-
-impl GlMesh {
-	pub fn new(gl: &WebGlRenderingContext) -> Self {
-		Self {
-			vertex_buffer: gl.create_buffer().unwrap(),
-			index_buffer: gl.create_buffer().unwrap(),
-			transform: na::Matrix4::identity(),
-			count: 0,
-		}
-	}
-	pub fn upload_vertices(&mut self, gl: &WebGlRenderingContext, vertices: &[f32]) {
-		gl.bind_buffer(WebGlRenderingContext::ARRAY_BUFFER, Some(&self.vertex_buffer));
-		gl.buffer_data_with_opt_array_buffer(
-			WebGlRenderingContext::ARRAY_BUFFER,
-			Some(&Float32Array::from(vertices).buffer()),
-			WebGlRenderingContext::STATIC_DRAW,
-		);
-	}
-
-	pub fn upload_indices(&mut self, gl: &WebGlRenderingContext, indices: &[u32]) {
-		self.count = indices.len() as u32;
-
-		gl.bind_buffer(WebGlRenderingContext::ELEMENT_ARRAY_BUFFER, Some(&self.index_buffer));
-		gl.buffer_data_with_opt_array_buffer(
-			WebGlRenderingContext::ELEMENT_ARRAY_BUFFER,
-			Some(&Uint32Array::from(indices).buffer()),
-			WebGlRenderingContext::STATIC_DRAW,
-		);
-	}
-}
 
 pub struct WebGlRenderer {
 	width: i32,
@@ -126,7 +86,8 @@ impl WebGlRenderer {
 
 	fn initialize_webgl(&mut self) {
 		if let Some(el) = &self.element {
-			let ctx = el.get_context("webgl")
+			let ctx = el
+				.get_context("webgl")
 				.unwrap()
 				.unwrap()
 				.dyn_into::<WebGlRenderingContext>()
@@ -139,7 +100,6 @@ impl WebGlRenderer {
 
 		let vertex_shader = self.create_vertex_shader(VERTEX_GLSL).unwrap();
 		let fragment_shader = self.create_fragment_shader(FRAGMENT_GLSL).unwrap();
-
 
 		if let Some(gl) = &self.context {
 			// Enable 32bit index buffers

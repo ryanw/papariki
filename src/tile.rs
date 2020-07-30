@@ -1,11 +1,7 @@
-use crate::geometry::LonLat;
 use crate::mesh::Mesh;
 use crate::protos::vector_tile::Tile as VectorTile;
 use nalgebra as na;
 use std::f32::consts::PI;
-
-#[cfg(target_arch = "wasm32")]
-use crate::wasm;
 
 const MOVE_TO: u32 = 0x1;
 const LINE_TO: u32 = 0x2;
@@ -35,16 +31,21 @@ impl Tile {
 
 	pub fn from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
 		let mut mesh = Mesh::new();
+		if raw.layers.len() == 0 {
+			return Self { mesh };
+		}
 
 		let layer = &raw.layers[0];
 		let extent = layer.extent as f32;
 
-		'feature: for feature in &layer.features {
+		// features
+		for feature in &layer.features {
 			let mut edges = vec![];
 			let mut geometry = feature.geometry.clone().into_iter();
 			let mut cursor = (0.0, 0.0);
 
-			'geom: while let Some(cmdint) = geometry.next() {
+			// geometry
+			while let Some(cmdint) = geometry.next() {
 				let cmd = (cmdint & 0x7) as u32;
 				let count = (cmdint >> 3) as u32;
 
@@ -57,7 +58,7 @@ impl Tile {
 				};
 
 				let mut add_edge = |p0: na::Point2<f32>, p1: na::Point2<f32>| {
-					let line = (p0 - p1);
+					let line = p0 - p1;
 					let len = line.norm().abs();
 					let norm = line.normalize();
 					if (norm.x.abs() == 1.0 || norm.y.abs() == 1.0) && len > 3.0 {
@@ -73,7 +74,8 @@ impl Tile {
 
 				let mut line_start = make_point(cursor);
 				let mut line_closed = true;
-				'cmd: for _ in 0..count {
+				// command
+				for _ in 0..count {
 					match cmd {
 						MOVE_TO => {
 							if !line_closed {
@@ -83,9 +85,9 @@ impl Tile {
 							}
 
 							let param = geometry.next().unwrap() as i32;
-							let arg0 = ((param >> 1) ^ (-(param & 1)));
+							let arg0 = (param >> 1) ^ (-(param & 1));
 							let param = geometry.next().unwrap() as i32;
-							let arg1 = ((param >> 1) ^ (-(param & 1)));
+							let arg1 = (param >> 1) ^ (-(param & 1));
 
 							cursor.0 += arg0 as f32 / extent;
 							cursor.1 += arg1 as f32 / extent;
@@ -94,9 +96,9 @@ impl Tile {
 						LINE_TO => {
 							line_closed = false;
 							let param = geometry.next().unwrap() as i32;
-							let arg0 = ((param >> 1) ^ (-(param & 1)));
+							let arg0 = (param >> 1) ^ (-(param & 1));
 							let param = geometry.next().unwrap() as i32;
-							let arg1 = ((param >> 1) ^ (-(param & 1)));
+							let arg1 = (param >> 1) ^ (-(param & 1));
 
 							let p0 = make_point(cursor);
 

@@ -1,15 +1,15 @@
 mod renderer;
-use renderer::WebGlRenderer;
-
+pub use renderer::WebGlRenderer;
+mod glmesh;
 use crate::globe::Globe;
-use crate::tile::Tile;
-use js_sys::{self, Array};
-use std::{cell::RefCell, rc::Rc};
+pub use glmesh::GlMesh;
+
 use std::panic;
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen::{closure::Closure, JsValue};
-use wasm_bindgen_futures::{future_to_promise, spawn_local};
+use wasm_bindgen_futures::future_to_promise;
 use web_sys::{self, HtmlElement};
 
 // Imported from JS land
@@ -35,7 +35,7 @@ pub struct Environment {
 pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 	panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-	let mut env = Environment {
+	let env = Environment {
 		globe: Rc::new(RefCell::new(Globe::new(token))),
 		renderer: Rc::new(RefCell::new(WebGlRenderer::new(1024, 768))),
 		animate_callback: Rc::new(RefCell::new(None)),
@@ -44,11 +44,11 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 	env.renderer.borrow_mut().attach(container);
 
 	// Run on next tick
-	let tile_promise = future_to_promise({
+	let _tile_promise = future_to_promise({
 		let globe = env.globe.clone();
 		let renderer = env.renderer.clone();
 		async move {
-			let mut globe = globe.borrow_mut();
+			let globe = globe.borrow_mut();
 			let zoom = 2;
 			let n = 2_i32.pow(zoom);
 
@@ -76,7 +76,7 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 			}
 			if let Some(callback) = animate.as_ref() {
 				let window = web_sys::window().unwrap();
-				let animation_id = window
+				let _animation_id = window
 					.request_animation_frame(callback.as_ref().unchecked_ref())
 					.unwrap();
 			}
@@ -84,7 +84,7 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 	};
 
 	let window = web_sys::window().unwrap();
-	let animation_id = window
+	let _animation_id = window
 		.request_animation_frame(closure.as_ref().unchecked_ref())
 		.unwrap();
 

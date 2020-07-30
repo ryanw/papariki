@@ -2,7 +2,7 @@
 
 This is just some Rust + WASM thing I'm messing around with.
 
-The entry point for the wasm is src/wasm/mod.rs.
+The entry point for the wasm is src/wasm.rs.
 
 ## Building
 

@@ -1,23 +1,6 @@
 use crate::protos::vector_tile::Tile as VectorTile;
 use crate::tile::Tile;
-
-use flate2::read::GzDecoder;
-use quick_protobuf::{BytesReader, MessageRead, Reader};
-use std::fs;
-use std::future::Future;
-use std::io::Read;
-
-use js_sys::{ArrayBuffer, Uint8Array};
-use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::JsFuture;
-use web_sys;
-use web_sys::{Request, RequestInit, RequestMode, Response};
-
-#[cfg(not(target_arch = "wasm32"))]
-use ureq;
-
-#[cfg(target_arch = "wasm32")]
-use crate::wasm;
+use quick_protobuf::{MessageRead, Reader};
 
 pub trait TileSource {
 	fn get_tile(&self, x: i32, y: i32, z: i32) -> Tile;
@@ -44,6 +27,12 @@ impl WebTileSource {
 
 	#[cfg(target_arch = "wasm32")]
 	pub async fn get_tile(&self, x: i32, y: i32, z: i32) -> Tile {
+		use crate::wasm;
+		use js_sys::{ArrayBuffer, Uint8Array};
+		use wasm_bindgen::JsCast;
+		use wasm_bindgen_futures::JsFuture;
+		use web_sys::{Request, RequestInit, RequestMode, Response};
+
 		wasm::log(&format!("Rust getting tile {}x{}x{}", x, y, z));
 		// Use 'fetch' from JS
 		let url = self.get_url(x, y, z);
@@ -74,12 +63,12 @@ impl WebTileSource {
 		// Read from web
 		let mut res = ureq::get(&self.get_url(x, y, z)).call().into_reader();
 		let mut gz_pbf = vec![];
-		res.read_to_end(&mut gz_pbf);
+		res.read_to_end(&mut gz_pbf).unwrap();
 
 		// Decode gzip
 		let mut pbf = GzDecoder::new(&*gz_pbf);
 		let mut bytes = vec![];
-		pbf.read_to_end(&mut bytes);
+		pbf.read_to_end(&mut bytes).unwrap();
 
 		// Decode PBF
 		let mut reader = Reader::from_bytes(bytes);
