@@ -3,6 +3,7 @@ pub use renderer::WebGlRenderer;
 mod glmesh;
 use crate::globe::Globe;
 pub use glmesh::GlMesh;
+mod web;
 
 use std::panic;
 use std::{cell::RefCell, rc::Rc};

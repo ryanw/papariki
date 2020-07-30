@@ -29,6 +29,7 @@ features = [
   'Headers',
   'HtmlCanvasElement',
   'HtmlElement',
+  'MouseEvent',
   'Performance',
   'ReadableStream',
   'Request',

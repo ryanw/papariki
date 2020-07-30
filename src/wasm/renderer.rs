@@ -1,9 +1,11 @@
 use crate::camera::Camera;
 use crate::mesh::Mesh;
-use crate::wasm::{self, GlMesh};
+use crate::wasm::{self, web, GlMesh};
 use nalgebra as na;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlCanvasElement, HtmlElement, WebGlProgram, WebGlRenderingContext, WebGlShader};
+use web_sys::{MouseEvent, HtmlCanvasElement, HtmlElement, WebGlProgram, WebGlRenderingContext, WebGlShader};
 
 static VERTEX_GLSL: &'static str = "
 	uniform mat4 view_proj;
@@ -28,6 +30,18 @@ static FRAGMENT_GLSL: &'static str = "
 	}
 ";
 
+#[derive(Clone, Debug, Default)]
+pub struct InputState {
+	mouse_down: bool,
+	mouse_position: (i32, i32),
+}
+
+impl InputState {
+	pub fn new() -> Self {
+		Default::default()
+	}
+}
+
 pub struct WebGlRenderer {
 	width: i32,
 	height: i32,
@@ -36,7 +50,9 @@ pub struct WebGlRenderer {
 	meshes: Vec<GlMesh>,
 	program: Option<WebGlProgram>,
 	context: Option<WebGlRenderingContext>,
-	globe_transform: na::Matrix4<f32>,
+	globe_rotation: na::Vector3<f32>,
+	input_state: Rc<RefCell<InputState>>,
+	prev_mouse_position: Option<(i32, i32)>,
 	camera: Camera,
 }
 
@@ -50,29 +66,60 @@ impl WebGlRenderer {
 			meshes: vec![],
 			program: None,
 			context: None,
-			globe_transform: na::Matrix4::from_euler_angles(0.1, 0.0, 0.41),
+			//globe_transform: na::Matrix4::from_euler_angles(0.1, 0.0, 0.41),
+			globe_rotation: na::Vector3::default(),
 			camera: Camera::new(width as f32, height as f32),
+			prev_mouse_position: Some((0, 0)),
+			input_state: Rc::new(RefCell::new(InputState::new())),
 		}
 	}
 
 	pub fn attach(&mut self, container: &HtmlElement) {
 		wasm::log("Attaching WebGlRenderer");
 		self.attach_to_element(container);
+		self.add_event_listeners();
 		self.initialize_webgl();
 	}
 
 	pub fn tick(&mut self) {
 		let now = wasm::now() / 1000.0;
 		let dt = (now - self.last_frame_at) as f32;
-		self.globe_transform *= na::Matrix4::from_euler_angles(0.0, -0.5 * dt, 0.0);
-		for mesh in &mut self.meshes {
-			mesh.transform = self.globe_transform;
+		if let Ok(state) = self.input_state.try_borrow() {
+
+			// Update rotation
+			if state.mouse_down {
+				if self.prev_mouse_position.is_none() {
+					self.prev_mouse_position = Some(state.mouse_position.clone());
+				} else {
+					let dx = (state.mouse_position.0 - self.prev_mouse_position.as_ref().unwrap().0) as f32;
+					let dy = (state.mouse_position.1 - self.prev_mouse_position.as_ref().unwrap().1) as f32;
+					self.globe_rotation.x += dy * 0.5 * dt;
+					self.globe_rotation.y += dx * -0.5 * dt;
+
+
+					// Save mouse position for next time
+					if self.prev_mouse_position.is_some() {
+						self.prev_mouse_position = Some(state.mouse_position.clone());
+					}
+				}
+			} else {
+				self.prev_mouse_position = None;
+				self.globe_rotation.y += -0.5 * dt;
+			}
+
+			// Update mesh
+			let model = na::Matrix4::from_euler_angles(self.globe_rotation.x, 0.0, 0.0) * na::Matrix4::from_euler_angles(0.0, self.globe_rotation.y, 0.0);
+			for mesh in &mut self.meshes {
+				mesh.transform = model;
+			}
 		}
+
 		self.last_frame_at = now;
 	}
 
 	fn attach_to_element(&mut self, container: &HtmlElement) {
-		let document = web_sys::window().unwrap().document().unwrap();
+		let window = web_sys::window().unwrap();
+		let document = window.document().unwrap();
 		let el = document
 			.create_element("canvas")
 			.unwrap()
@@ -82,6 +129,45 @@ impl WebGlRenderer {
 		el.set_attribute("height", &self.height.to_string()).unwrap();
 		container.append_child(&el).unwrap();
 		self.element = Some(el);
+	}
+
+	fn add_event_listeners(&mut self) {
+		if let Some(el) = &mut self.element {
+			let window = web_sys::window().unwrap();
+			let document = window.document().unwrap();
+
+			let state = self.input_state.clone();
+			web::add_event_listener(&el, "mousedown", move |e: MouseEvent| {
+				if let Ok(mut state) = state.try_borrow_mut() {
+					let x = e.client_x();
+					let y = e.client_y();
+					state.mouse_position = (x, y);
+					state.mouse_down = true;
+				}
+			});
+
+			let state = self.input_state.clone();
+			web::add_event_listener(&window, "mouseup", move |e: MouseEvent| {
+				if let Ok(mut state) = state.try_borrow_mut() {
+					let x = e.client_x();
+					let y = e.client_y();
+					state.mouse_position = (x, y);
+					state.mouse_down = false;
+				}
+			});
+
+			let state = self.input_state.clone();
+			web::add_event_listener(&window, "mousemove", move |e: MouseEvent| {
+				if let Ok(mut state) = state.try_borrow_mut() {
+					if !state.mouse_down {
+						return;
+					}
+					let x = e.client_x();
+					let y = e.client_y();
+					state.mouse_position = (x, y);
+				}
+			});
+		}
 	}
 
 	fn initialize_webgl(&mut self) {
