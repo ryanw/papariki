@@ -1,4 +1,5 @@
 use crate::mesh::Mesh;
+use crate::geometry::{lonlat_to_point, pixel_to_lonlat};
 use crate::protos::vector_tile::Tile as VectorTile;
 use nalgebra as na;
 use std::f32::consts::PI;
@@ -141,7 +142,7 @@ impl Tile {
 				}
 			}
 
-			let thickness = 0.1;
+			let thickness = 0.2;
 			for edge in &edges {
 				let p0 = na::Point2::new(edge.0.x, edge.0.y);
 				let p1 = na::Point2::new(edge.1.x, edge.1.y);
@@ -173,30 +174,4 @@ impl Tile {
 
 		Self { mesh }
 	}
-}
-
-fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
-	let rad = 1.005;
-	let lon = (ll.x).to_radians() as f32;
-	let lat = (ll.y - 90.0).to_radians() as f32;
-
-	let x = -rad * lat.sin() * lon.sin();
-	let y = -rad * lat.cos();
-	let z = rad * lat.sin() * lon.cos();
-
-	na::Point3::new(x, y, z)
-}
-
-fn pixel_to_lonlat(p: &na::Point2<f32>, zoom: f32) -> na::Point2<f32> {
-	let tile_size = 0.5f32;
-	let c = tile_size * 2.0_f32.powi(zoom as i32);
-	let bc = c / 360.0;
-	let cc = c / (2.0 * PI);
-
-	let e = c / 2.0;
-	let lon = (p.x - e) / bc;
-	let g = (p.y - e) / -cc;
-	let lat = (2.0f32 * g.exp().atan() - 0.5 * PI).to_degrees();
-
-	na::Point2::new(lon, lat)
 }

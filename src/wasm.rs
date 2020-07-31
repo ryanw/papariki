@@ -1,9 +1,15 @@
 mod renderer;
-pub use renderer::WebGlRenderer;
 mod glmesh;
-use crate::globe::Globe;
-pub use glmesh::GlMesh;
 mod web;
+mod input;
+
+pub use glmesh::GlMesh;
+pub use renderer::WebGlRenderer;
+pub use input::HtmlInputs;
+use crate::globe::Globe;
+use crate::scene::{Scene, SceneItem};
+use crate::mesh::Mesh;
+use nalgebra as na;
 
 use std::panic;
 use std::{cell::RefCell, rc::Rc};
@@ -27,69 +33,97 @@ pub fn now() -> f64 {
 // Export to JS land
 #[wasm_bindgen]
 pub struct Environment {
-	globe: Rc<RefCell<Globe>>,
+	scene: Rc<RefCell<Scene>>,
 	renderer: Rc<RefCell<WebGlRenderer>>,
-	animate_callback: Rc<RefCell<Option<Closure<dyn FnMut()>>>>,
+	inputs: Rc<RefCell<HtmlInputs>>,
+	animate_loop: web::AnimateLoop,
 }
 
 #[wasm_bindgen]
 pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 	panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-	let env = Environment {
-		globe: Rc::new(RefCell::new(Globe::new(token))),
+	let globe = Rc::new(RefCell::new(Globe::new(token)));
+
+	let mut env = Environment {
+		scene: Rc::new(RefCell::new(Scene::new(globe.clone()))),
+		inputs: Rc::new(RefCell::new(HtmlInputs::default())),
 		renderer: Rc::new(RefCell::new(WebGlRenderer::new(1024, 768))),
-		animate_callback: Rc::new(RefCell::new(None)),
+		animate_loop: Rc::new(RefCell::new(None)),
 	};
 	// Add renderer to the DOM
-	env.renderer.borrow_mut().attach(container);
+	{
+		let mut renderer = env.renderer.borrow_mut();
+		renderer.attach(container);
+		let mut inputs = env.inputs.borrow_mut();
+		inputs.attach(container);
+	}
 
 	// Run on next tick
 	let _tile_promise = future_to_promise({
-		let globe = env.globe.clone();
 		let renderer = env.renderer.clone();
+		let scene = env.scene.clone();
+
 		async move {
-			let globe = globe.borrow_mut();
+			// Add some pins
+			let mut scene = scene.borrow_mut();
+			scene.add(SceneItem {
+				mesh: Mesh::cube(),
+				transform: na::Matrix4::new_scaling(0.1),
+				version: 0,
+			});
+			scene.add(SceneItem {
+				mesh: Mesh::cube(),
+				transform: na::Matrix4::new_scaling(0.1),
+				version: 0,
+			});
+
+			let mut globe = globe.borrow_mut();
 			let zoom = 2;
 			let n = 2_i32.pow(zoom);
 
 			for y in 0..n {
 				for x in 0..n {
-					let tile = globe.get_tile(x, y, zoom as i32).await;
-					renderer.borrow_mut().add_mesh(tile.mesh());
+					globe.queue_tile(x, y, zoom as i32);
+					globe.update().await;
 				}
 			}
 			Ok(true.into())
 		}
 	});
 
-	// Run every frame
-	let closure = {
-		let animate = env.animate_callback.clone();
+	// Run every animation frame
+	env.animate_loop = web::request_animation_loop({
 		let renderer = env.renderer.clone();
-		Closure::wrap(Box::new(move || {
-			let animate = animate.borrow();
-			if let Ok(mut renderer) = renderer.try_borrow_mut() {
-				renderer.tick();
-				renderer.draw();
+		let scene = env.scene.clone();
+		let input = env.inputs.clone();
+		let mut last_frame_time = now() / 1000.0;
+
+		// Loop
+		move || {
+			let now = now() / 1000.0;
+			let dt = now - last_frame_time;
+			last_frame_time = now;
+
+
+			if let Ok(mut scene) = scene.try_borrow_mut() {
+				if let Ok(inputs) = input.try_borrow() {
+					scene.tick(dt, &*inputs);
+					if let Ok(mut renderer) = renderer.try_borrow_mut() {
+						let (w, h) = renderer.size();
+						scene.camera_mut().resize(w as f32, h as f32);
+						renderer.draw(&scene);
+					} else {
+						log("Failed to borrow renderer");
+					}
+				} else {
+					log("Failed borrow input state");
+				}
 			} else {
-				log("Failed to tick renderer");
+				log("Failed to borrow scene");
 			}
-			if let Some(callback) = animate.as_ref() {
-				let window = web_sys::window().unwrap();
-				let _animation_id = window
-					.request_animation_frame(callback.as_ref().unchecked_ref())
-					.unwrap();
-			}
-		}) as Box<dyn FnMut()>)
-	};
-
-	let window = web_sys::window().unwrap();
-	let _animation_id = window
-		.request_animation_frame(closure.as_ref().unchecked_ref())
-		.unwrap();
-
-	*env.animate_callback.borrow_mut() = Some(closure);
+		}
+	});
 
 	env
 }
