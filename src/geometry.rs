@@ -22,7 +22,7 @@ impl Feature {
 }
 
 pub fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
-	let rad = 1.005;
+	let rad = 0.7;
 	let lon = (ll.x).to_radians() as f32;
 	let lat = (ll.y - 90.0).to_radians() as f32;
 

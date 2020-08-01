@@ -17,7 +17,7 @@ impl Default for Camera {
 		Self {
 			width: Default::default(),
 			height: Default::default(),
-			projection: na::Perspective3::new(1.0, 3.14 / FOV, 0.1, 1000.0),
+			projection: na::Perspective3::new(1.0, 3.14 / FOV, 0.0001, 100.0),
 			position: na::Point3::new(0.0, 0.0, -3.0),
 			rotation: na::Vector3::new(0.0, 0.0, 0.0),
 			scaling: na::Vector3::new(1.0, 1.0, 1.0),
@@ -30,7 +30,7 @@ impl Camera {
 		Self {
 			width,
 			height,
-			projection: na::Perspective3::new(width / height, 3.14 / FOV, 0.001, 100.0),
+			projection: na::Perspective3::new(width / height, 3.14 / FOV, 0.0001, 100.0),
 			..Default::default()
 		}
 	}

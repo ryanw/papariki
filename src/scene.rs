@@ -16,6 +16,10 @@ fn rad_to_deg(rad: f32) -> f32 {
 	((rad * (180.0 / PI) + 180.0) % 360.0) - 180.0
 }
 
+fn map_range(val: f32, min0: f32, max0: f32, min1: f32, max1: f32) -> f32 {
+	(val - min0) * (max1 - min1) / (max0 - min0) + min1
+}
+
 #[derive(Debug, Default)]
 pub struct SceneItem {
 	pub mesh: Mesh,
@@ -43,7 +47,7 @@ impl Scene {
 			tiles: HashMap::new(),
 			prev_mouse_position: None,
 			prev_wheel_position: Some((0.0, 0.0)),
-			zoom: 1.0,
+			zoom: 0.0,
 			..Self::default()
 		}
 	}
@@ -69,6 +73,7 @@ impl Scene {
 	}
 
 	pub fn add_marker(&mut self, lonlat: na::Point2<f32>) {
+		wasm::log(&format!("Adding marker {:?}", lonlat));
 		let id = self.add(SceneItem {
 			mesh: Mesh::cube(),
 			transform: na::Matrix4::identity(),
@@ -114,16 +119,16 @@ impl Scene {
 		self.update_tiles();
 
 		// Update mousewheel zooming
-		let dy = (inputs.wheel_position().1 - self.prev_wheel_position.as_ref().unwrap().1) as f32;
+		let dy = -(inputs.wheel_position().1 - self.prev_wheel_position.as_ref().unwrap().1) as f32;
 		if dy != 0.0 {
-			self.zoom -= dy / 15.0;
-
-			if self.zoom > 2.98 {
-				self.zoom = 2.98;
+			self.zoom += dy * 0.03;
+			if self.zoom > 1.0 {
+				self.zoom = 1.0;
 			}
-			if self.zoom < 0.33 {
-				self.zoom = 0.33;
+			if self.zoom < 0.0 {
+				self.zoom = 0.0;
 			}
+			wasm::log(&format!("ZOO {} == {}", self.zoom, map_range(self.zoom, 0.0, 1.0, 0.5, 5.0)));
 		}
 		self.prev_wheel_position = Some(inputs.wheel_position());
 
@@ -131,7 +136,8 @@ impl Scene {
 		if inputs.is_mouse_down() {
 			if self.prev_mouse_position.is_none() {
 				// Mouse down
-				self.prev_mouse_position = Some(inputs.mouse_position());
+				let pos = inputs.mouse_position();
+				self.prev_mouse_position = Some(pos);
 				// Coordinate at center of screen
 				let lat = rad_to_deg(self.globe_rotation.x);
 				let lon = rad_to_deg(self.globe_rotation.y);
@@ -140,11 +146,8 @@ impl Scene {
 				// Mouse move
 				let dx = (inputs.mouse_position().0 - self.prev_mouse_position.as_ref().unwrap().0) as f32;
 				let dy = (inputs.mouse_position().1 - self.prev_mouse_position.as_ref().unwrap().1) as f32;
-				self.globe_rotation.x += dy * 0.0025 / self.zoom;
-				self.globe_rotation.y += dx * -0.0025 / self.zoom;
-				if self.zoom <= 0.0 {
-					panic!("Invalid zoom");
-				}
+				self.globe_rotation.x += dy * 0.003 / (1.5 - self.zoom);
+				self.globe_rotation.y += dx * -0.003 / (1.5 - self.zoom);
 
 				let l = PI * 0.4;
 				if self.globe_rotation.x > l {
@@ -166,19 +169,22 @@ impl Scene {
 			self.globe_rotation.y += -0.5 * dt as f32;
 		}
 
-		// Update camera
-		self.camera.position = na::Point3::new(0.0, 0.0, self.zoom - 3.7);
-
-		// Update tile mesh rotation
+		// Update tile mesh rotation and scale
+		let scale = map_range(self.zoom.powf(2.0), 0.0, 1.0, 0.5, 4.0);
 		let model = na::Matrix4::from_euler_angles(self.globe_rotation.x, 0.0, 0.0)
-			* na::Matrix4::from_euler_angles(0.0, self.globe_rotation.y, 0.0);
+			* na::Matrix4::from_euler_angles(0.0, self.globe_rotation.y, 0.0)
+			* na::Matrix4::new_scaling(scale);
+
+		// Update camera
+		//self.camera.position = na::Point3::new(0.0, 0.0, -scale - 0.5);
+
 
 		for (coord, item_id) in &mut self.tiles {
 			let item = &mut self.items[*item_id];
 			item.transform = model;
 		}
 
-		// HACK update the cube
+		// Update the markers
 		for (item_id, lonlat) in &self.markers {
 			let pos = lonlat_to_point(&lonlat);
 			self.items[*item_id].transform = model * na::Matrix4::new_translation(&pos.coords) * na::Matrix4::new_scaling(0.01);

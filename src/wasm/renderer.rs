@@ -20,7 +20,8 @@ static VERTEX_GLSL: &'static str = "
 	void main(void) {
 		mat4 mvp = view_proj * model;
 		gl_Position = mvp * vec4(position, 1.0);
-		color = (vec4(position, 1.0) * 0.5 + 0.5) * (2.0 - (gl_Position.z / 2.0));
+		color = (vec4(position, 1.0) * 0.5 + 0.5);
+		//color = (vec4(position, 1.0) * 0.5 + 0.5) * (2.0 - (gl_Position.z / 2.0));
 	}
 ";
 
