@@ -21,8 +21,15 @@ impl Feature {
 	}
 }
 
+pub fn point_to_lonlat(point: &na::Point3<f32>) -> na::Point2<f32> {
+	let v = point.coords.normalize();
+	let mut lat = v.y.acos();
+	let mut lon = v.x.atan2(v.z);
+	na::Point2::new(180.0 + lon.to_degrees() * -1.0, lat.to_degrees() - 90.0)
+}
+
 pub fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {
-	let rad = 0.7;
+	let rad = 1.0;
 	let lon = (ll.x).to_radians() as f32;
 	let lat = (ll.y - 90.0).to_radians() as f32;
 

@@ -65,19 +65,6 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 		let scene = env.scene.clone();
 
 		async move {
-			// Add some pins
-			let mut scene = scene.borrow_mut();
-			scene.add(SceneItem {
-				mesh: Mesh::cube(),
-				transform: na::Matrix4::new_scaling(0.1),
-				version: 0,
-			});
-			scene.add(SceneItem {
-				mesh: Mesh::cube(),
-				transform: na::Matrix4::new_scaling(0.1),
-				version: 0,
-			});
-
 			let mut globe = globe.borrow_mut();
 			let zoom = 2;
 			let n = 2_i32.pow(zoom);

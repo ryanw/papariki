@@ -14,18 +14,18 @@ impl Mesh {
 		}
 	}
 
-	pub fn cube() -> Self {
+	pub fn cube(s: f32) -> Self {
 		let vertices = vec![
 			// Front
-			na::Point3::new(-1.0, -1.0,  1.0),
-			na::Point3::new( 1.0, -1.0,  1.0),
-			na::Point3::new( 1.0,  1.0,  1.0),
-			na::Point3::new(-1.0,  1.0,  1.0),
+			na::Point3::new(-s, -s,  s),
+			na::Point3::new( s, -s,  s),
+			na::Point3::new( s,  s,  s),
+			na::Point3::new(-s,  s,  s),
 			// Back
-			na::Point3::new(-1.0, -1.0, -1.0),
-			na::Point3::new( 1.0, -1.0, -1.0),
-			na::Point3::new( 1.0,  1.0, -1.0),
-			na::Point3::new(-1.0,  1.0, -1.0),
+			na::Point3::new(-s, -s, -s),
+			na::Point3::new( s, -s, -s),
+			na::Point3::new( s,  s, -s),
+			na::Point3::new(-s,  s, -s),
 		];
 
 		let triangles = vec![
