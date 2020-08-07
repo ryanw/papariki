@@ -23,9 +23,9 @@ impl Feature {
 
 pub fn point_to_lonlat(point: &na::Point3<f32>) -> na::Point2<f32> {
 	let v = point.coords.normalize();
-	let mut lat = v.y.acos();
-	let mut lon = v.x.atan2(v.z);
-	na::Point2::new(180.0 + lon.to_degrees() * -1.0, lat.to_degrees() - 90.0)
+	let mut lat = v.y.acos() - PI / 2.0;
+	let mut lon = v.x.atan2(-v.z);
+	na::Point2::new(lon.to_degrees(), lat.to_degrees())
 }
 
 pub fn lonlat_to_point(ll: &na::Point2<f32>) -> na::Point3<f32> {

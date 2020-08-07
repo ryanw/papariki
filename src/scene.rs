@@ -82,21 +82,17 @@ impl Scene {
 			tiles: HashMap::new(),
 			prev_mouse_position: None,
 			prev_wheel_position: Some((0.0, 0.0)),
-			zoom: 0.3,
+			zoom: 0.4,
 			clicking: false,
 			..Self::default()
 		}
 	}
 
-	fn on_click(&mut self, pos: (i32, i32)) {
-		// Coordinate at center of screen
-		let lat = rad_to_deg(self.globe_rotation.x);
-		let lon = rad_to_deg(self.globe_rotation.y);
-
+	fn screen_to_surface(&self, pos: (i32, i32), rotate: bool) -> Option<na::Point3<f32>> {
 		// Viewport -> camera
 		let (w, h) = self.camera.size();
-		let x = ((pos.0 * 2) as f32 - w) / w;
-		let y = -((pos.1 * 2) as f32 - h) / h;
+		let x = (pos.0 as f32 * 2.0 - w) / w;
+		let y = -(pos.1 as f32 * 2.0 - h) / h;
 
 		// Camera -> world
 		let inv_view = self.camera.view().try_inverse().unwrap();
@@ -106,30 +102,46 @@ impl Scene {
 
 		// Transform origin/dir from screen to world space
 		let mut origin = vp.transform_point(&na::Point3::new(x, y, -1.0));
-		//let mut origin = inv_view.transform_point(&na::Point3::new(x, y, -0.1));
 		let dest       = vp.transform_point(&na::Point3::new(x, y, 0.0));
 		let dir = (dest - origin).normalize();
-		//origin.z += self.camera.near;
 
-		let intersection = ray_sphere_intersection(
+		if let Some(intersection) = ray_sphere_intersection(
 			&na::Point3::new(0.0, 0.0, 0.0),
 			self.scale(),
 			&origin,
 			&dir,
-		);
+		) {
+			let mut model = na::Matrix4::identity();
+			if rotate {
+				model *= na::Matrix4::from_euler_angles(0.0, -self.globe_rotation.y, 0.0) * na::Matrix4::from_euler_angles(-self.globe_rotation.x, 0.0, 0.0);
+			}
+			Some(model.transform_point(&intersection))
+		}
+		else {
+			None
+		}
+	}
 
-		// Put a little cube where they clicked
-		if intersection.is_some() {
+	fn screen_to_lonlat(&self, pos: (i32, i32), rotate: bool) -> Option<na::Point2<f32>> {
+		if let Some(p) = self.screen_to_surface(pos, rotate) {
+			Some(point_to_lonlat(&p))
+		}
+		else {
+			None
+		}
+	}
+
+	fn on_click(&mut self, pos: (i32, i32)) {
+		if let Some(ll) = self.screen_to_lonlat(pos, true) {
 			let model = na::Matrix4::from_euler_angles(0.0, -self.globe_rotation.y, 0.0)
 			* na::Matrix4::from_euler_angles(-self.globe_rotation.x, 0.0, 0.0);
-			let intersection = model.transform_point(&intersection.unwrap());
-			let ll = point_to_lonlat(&intersection);
 			self.add_marker(ll);
 		}
 	}
 
 	fn on_mouse_down(&mut self, pos: (i32, i32)) {
 		self.clicking = true;
+		wasm::log(&format!("START {:?} / {:?}", pos, self.globe_rotation));
 	}
 
 	fn on_mouse_up(&mut self, pos: (i32, i32)) {
@@ -144,13 +156,28 @@ impl Scene {
 		if pos == self.prev_mouse_position.unwrap() {
 			return;
 		}
+
+		// 90deg distance
+		let s = 340.0;
+
+		let old_pos = self.prev_mouse_position.as_ref().unwrap().clone();
+
 		self.clicking = false;
-		// Mouse move
-		let dx = (pos.0 - self.prev_mouse_position.as_ref().unwrap().0) as f32;
-		let dy = (pos.1 - self.prev_mouse_position.as_ref().unwrap().1) as f32;
-		let z = 0.01 / (1.0 + self.zoom);
-		self.globe_rotation.x += dy * 0.3 * z;
-		self.globe_rotation.y += dx * -0.3 * z;
+		// Mouse delta
+		let coord0 = self.screen_to_lonlat(old_pos, false);
+		let coord1 = self.screen_to_lonlat(pos, false);
+		if coord0.is_none() || coord1.is_none() {
+			let dx = (pos.0 - self.prev_mouse_position.as_ref().unwrap().0) as f32;
+			let dy = (pos.1 - self.prev_mouse_position.as_ref().unwrap().1) as f32;
+			self.globe_rotation.x += (dy / s) * (PI / 2.0);
+			self.globe_rotation.y += (-dx / s) * (PI / 2.0);
+		} else if let Some(coord0) = coord0 {
+			if let Some(coord1) = coord1 {
+				self.globe_rotation.x += (coord0.y - coord1.y) / 55.0;
+				self.globe_rotation.y += (coord0.x - coord1.x) / 55.0;
+			}
+		}
+
 
 		let l = PI * 0.4;
 		if self.globe_rotation.x > l {
@@ -235,6 +262,16 @@ impl Scene {
 	}
 
 	pub fn tick(&mut self, dt: f64, inputs: &UserInputs) {
+		if self.items.len() == 0 {
+			for _ in 0..3 {
+				self.add(SceneItem {
+					mesh: Mesh::cube(1.0),
+					transform: na::Matrix4::identity(),
+					version: 0,
+				});
+			}
+		}
+
 		self.update_tiles();
 
 		// Update mousewheel zooming
@@ -262,12 +299,16 @@ impl Scene {
 					self.prev_mouse_position = Some(inputs.mouse_position());
 				}
 			}
-		} else {
+		} else if self.prev_mouse_position.is_some() {
 			self.on_mouse_up(inputs.mouse_position());
 			self.prev_mouse_position = None;
 
-			self.globe_rotation.y += dt as f32 * -0.3;
+			//self.globe_rotation.y += dt as f32 * -0.3;
 		}
+
+		self.items[0].transform = na::Matrix4::new_translation(&na::Vector3::new(self.scale(), 0.0, 0.0)) * na::Matrix4::new_scaling(0.01);
+		self.items[1].transform = na::Matrix4::new_translation(&na::Vector3::new(0.0, self.scale(), 0.0)) * na::Matrix4::new_scaling(0.01);
+		self.items[2].transform = na::Matrix4::new_translation(&na::Vector3::new(0.0, 0.0, -self.scale())) * na::Matrix4::new_scaling(0.01);
 
 		// Update tile mesh rotation and scale
 		let model = na::Matrix4::from_euler_angles(self.globe_rotation.x, 0.0, 0.0)
