@@ -3,6 +3,7 @@ pub mod data;
 pub mod geometry;
 pub mod globe;
 pub mod mesh;
+pub mod polyline;
 pub mod protos;
 pub mod tile;
 pub mod scene;

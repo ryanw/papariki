@@ -1,9 +1,11 @@
 mod renderer;
 mod glmesh;
+mod glpolyline;
 mod web;
 mod input;
 
 pub use glmesh::GlMesh;
+pub use glpolyline::GlPolyline;
 pub use renderer::WebGlRenderer;
 pub use input::HtmlInputs;
 use crate::globe::Globe;
@@ -24,6 +26,16 @@ use web_sys::{self, HtmlElement};
 extern "C" {
 	#[wasm_bindgen(js_namespace=console)]
 	pub fn log(s: &str);
+}
+
+pub fn msg(s: &str) {
+	let window = web_sys::window().unwrap();
+	let document = window.document().unwrap();
+	let el = document
+		.get_element_by_id("messages")
+		.unwrap();
+	el.set_inner_html(&s.replace("\n", "<br>"));
+	document.body().unwrap().append_child(&el).unwrap();
 }
 
 pub fn now() -> f64 {
@@ -66,7 +78,7 @@ pub fn attach(container: &HtmlElement, token: &str) -> Environment {
 
 		async move {
 			let mut globe = globe.borrow_mut();
-			let zoom = 2;
+			let zoom = 0;
 			let n = 2_i32.pow(zoom);
 
 			for y in 0..n {

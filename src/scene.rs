@@ -2,6 +2,7 @@ use crate::camera::Camera;
 use crate::globe::Globe;
 use crate::input::UserInputs;
 use crate::mesh::Mesh;
+use crate::polyline::Polyline;
 use crate::tile::Tile;
 use crate::geometry::{point_to_lonlat, lonlat_to_point, pixel_to_lonlat};
 use nalgebra as na;
@@ -57,8 +58,15 @@ fn ray_sphere_intersection(center: &na::Point3<f32>, radius: f32, origin: &na::P
 #[derive(Debug, Default)]
 pub struct SceneItem {
 	pub mesh: Mesh,
+	pub tile: Option<Tile>,
 	pub transform: na::Matrix4<f32>,
 	pub version: usize,
+}
+
+impl SceneItem {
+	pub fn polylines(&self) -> Vec<Polyline> {
+		self.tile.as_ref().unwrap().polylines()
+	}
 }
 
 #[derive(Debug, Default)]
@@ -71,7 +79,7 @@ pub struct Scene {
 	globe_rotation: na::Vector3<f32>,
 	prev_mouse_position: Option<(i32, i32)>,
 	prev_wheel_position: Option<(f32, f32)>,
-	zoom: f32,
+	pub zoom: f32,
 	clicking: bool,
 }
 
@@ -219,9 +227,10 @@ impl Scene {
 		let id = self.add(SceneItem {
 			mesh: Mesh::cube(1.0),
 			transform: na::Matrix4::identity(),
-			version: 0,
+			..Default::default()
 		});
 		self.markers.insert(id, lonlat);
+		wasm::msg(&format!("You clicked:\nLON: {}\nLAT: {}", lonlat.x, lonlat.y));
 	}
 
 	pub fn items(&self) -> &Vec<SceneItem> {
@@ -248,8 +257,9 @@ impl Scene {
 					let idx = self.items.len();
 					self.items.push(SceneItem {
 						mesh: tile.mesh(),
+						tile: Some(tile.clone()),
 						transform: na::Matrix4::identity(),
-						version: 0,
+						..Default::default()
 					});
 					self.tiles.insert(coord.clone(), idx);
 				}
@@ -267,7 +277,7 @@ impl Scene {
 				self.add(SceneItem {
 					mesh: Mesh::cube(1.0),
 					transform: na::Matrix4::identity(),
-					version: 0,
+					..Default::default()
 				});
 			}
 		}

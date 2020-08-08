@@ -1,5 +1,6 @@
-use crate::mesh::Mesh;
 use crate::geometry::{lonlat_to_point, pixel_to_lonlat};
+use crate::mesh::Mesh;
+use crate::polyline::{Ring, Polyline};
 use crate::protos::vector_tile::Tile as VectorTile;
 use nalgebra as na;
 use std::f32::consts::PI;
@@ -11,15 +12,23 @@ const CLOSE_PATH: u32 = 0x7;
 #[derive(Clone, Debug)]
 pub struct Tile {
 	mesh: Mesh,
+	lines: Vec<Polyline>,
 }
 
 impl Tile {
 	pub fn new() -> Self {
-		Self { mesh: Mesh::new() }
+		Self {
+			mesh: Mesh::new(),
+			lines: vec![],
+		}
 	}
 
 	pub fn mesh(&self) -> Mesh {
 		self.mesh.clone()
+	}
+
+	pub fn polylines(&self) -> Vec<Polyline> {
+		self.lines.clone()
 	}
 
 	pub fn vertices(&self) -> Vec<f32> {
@@ -31,9 +40,57 @@ impl Tile {
 	}
 
 	pub fn from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
-		let mut mesh = Mesh::new();
+		let mesh = Mesh::new();
 		if raw.layers.len() == 0 {
-			return Self { mesh };
+			return Self { mesh, lines: vec![] };
+		}
+
+		let layer = &raw.layers[0];
+		let extent = layer.extent as f32;
+		let mut lines = vec![
+			Polyline {
+				rings: vec![
+					Ring {
+						points: vec![
+							na::Point3::new(0.0, 0.0, -1.0),
+							na::Point3::new(0.1, 0.0, -1.0),
+							na::Point3::new(0.2, 0.15, -1.0),
+							na::Point3::new(0.1, 0.15, -1.0),
+							na::Point3::new(0.0, 0.10, -1.0),
+						],
+					}
+				],
+			},
+		];
+		//return Self { mesh, lines };
+
+		// features
+		for feature in &layer.features {
+			let mut line = Polyline::from_geometry(&feature.geometry);
+
+			// Convert from texture pixel coords to world coords
+			for ring in &mut line.rings {
+				for point in &mut ring.points {
+					let ll = pixel_to_lonlat(
+						&na::Point2::new(x as f32 + point.x / extent, y as f32 + point.y / extent),
+						1.0 + z as f32,
+					);
+
+					*point = lonlat_to_point(&ll);
+				}
+			}
+
+			lines.push(line);
+		}
+
+		Self { mesh, lines }
+	}
+
+	pub fn old_from_vector_tile<'a>(raw: VectorTile<'a>, x: i32, y: i32, z: i32) -> Self {
+		let mut mesh = Mesh::new();
+		let mut lines = vec![];
+		if raw.layers.len() == 0 {
+			return Self { mesh, lines: vec![] };
 		}
 
 		let layer = &raw.layers[0];
@@ -142,7 +199,7 @@ impl Tile {
 				}
 			}
 
-			let thickness = 0.2;
+			let thickness = 0.01;
 			for edge in &edges {
 				let p0 = na::Point2::new(edge.0.x, edge.0.y);
 				let p1 = na::Point2::new(edge.1.x, edge.1.y);
@@ -172,6 +229,6 @@ impl Tile {
 			}
 		}
 
-		Self { mesh }
+		Self { mesh, lines }
 	}
 }
