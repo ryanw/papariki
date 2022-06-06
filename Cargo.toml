@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 quick-protobuf = "0.7"
 flate2 = "1.0"
 ureq = "1.3.0"
-nalgebra = "0.21.1"
+nalgebra = "0.27.1"
 futures-preview = "0.3.0-alpha.19"
 
 # WASM
